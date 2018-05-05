@@ -15,11 +15,11 @@
  */
 
 
-(function() {
+(function(define, require) {
 
     function loadD3() {
         if (window.d3) return true;
-        requirejs.config({
+        require.config({
             paths: {
                 d3: '//d3js.org/d3.v3.min'
             }
@@ -37,7 +37,7 @@
 
     function draw(selector, json) {
         if (!loadD3()) return;
-        requirejs(['d3'], function (d3) {
+        require(['d3'], function (d3) {
             {
 
                 var width = 960,
@@ -81,41 +81,14 @@
                     .style("stroke", "#666")
                     .style("font-family", "'Fira Sans', Arial, sans-serif")
                     .style("font-size", "8pt")
-                    .text(function (d) {
-                        {
-                            return d.name || d.title
-                        }
-                    });
+                    .text(function (d) { return d.name || d.title });
 
                 force.on("tick", function () {
-                    {
-                        link.attr("x1", function (d) {
-                            {
-                                return d.source.x;
-                            }
-                        })
-                            .attr("y1", function (d) {
-                                {
-                                    return d.source.y;
-                                }
-                            })
-                            .attr("x2", function (d) {
-                                {
-                                    return d.target.x;
-                                }
-                            })
-                            .attr("y2", function (d) {
-                                {
-                                    return d.target.y;
-                                }
-                            });
-
-                        node.attr("transform", function (d) {
-                            {
-                                return "translate(" + d.x + "," + d.y + ")";
-                            }
-                        });
-                    }
+                    link.attr("x1", function (d) { return d.source.x; })
+                        .attr("y1", function (d) { return d.source.y; })
+                        .attr("x2", function (d) { return d.target.x; })
+                        .attr("y2", function (d) { return d.target.y; });
+                    node.attr("transform", function (d) { return "translate(" + d.x + "," + d.y + ")"; });
                 });
 
             }
@@ -139,4 +112,4 @@
 
     });
 
-})();
+})(define, requirejs);
