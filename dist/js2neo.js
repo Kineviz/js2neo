@@ -15,96 +15,128 @@
  */
 
 
-function loadD3() {
-    if (window.d3) return true;
-    requirejs.config({
-        paths: {
-            d3: '//d3js.org/d3.v3.min'
-        }
+(function() {
+
+    function loadD3() {
+        if (window.d3) return true;
+        requirejs.config({
+            paths: {
+                d3: '//d3js.org/d3.v3.min'
+            }
+        });
+        return true;
+    }
+
+    function loadCSS(url) {
+        var link = document.createElement("link");
+        link.type = "text/css";
+        link.rel = "stylesheet";
+        link.href = url;
+        document.getElementsByTagName("head")[0].appendChild(link);
+    }
+
+    function draw(selector, json) {
+        if (!loadD3()) return;
+        requirejs(['d3'], function (d3) {
+            {
+
+                var width = 960,
+                    height = 500;
+
+                var svg = d3.select(selector)
+                    .attr("width", width)
+                    .attr("height", height);
+
+                var force = d3.layout.force()
+                    .gravity(.05)
+                    .distance(100)
+                    .charge(-100)
+                    .size([width, height])
+                    .nodes(json.nodes)
+                    .links(json.links)
+                    .start();
+
+                var link = svg.selectAll(".link")
+                    .data(json.links)
+                    .enter().append("line")
+                    .style("stroke", "#aaa")
+                    .style("stroke-width", "3");
+
+                var node = svg.selectAll(".node")
+                    .data(json.nodes)
+                    .enter().append("g")
+                    .attr("class", "node")
+                    .call(force.drag);
+
+                node.append("circle")
+                    .attr("r", "10")
+                    .style("stroke", "#aaa")
+                    .style("stroke-width", "3")
+                    .style("fill", "#ccc");
+
+                node.append("text")
+                    .attr("dx", 0)
+                    .attr("dy", "24px")
+                    .attr("text-anchor", "middle")
+                    .style("stroke", "#666")
+                    .style("font-family", "'Fira Sans', Arial, sans-serif")
+                    .style("font-size", "8pt")
+                    .text(function (d) {
+                        {
+                            return d.name || d.title
+                        }
+                    });
+
+                force.on("tick", function () {
+                    {
+                        link.attr("x1", function (d) {
+                            {
+                                return d.source.x;
+                            }
+                        })
+                            .attr("y1", function (d) {
+                                {
+                                    return d.source.y;
+                                }
+                            })
+                            .attr("x2", function (d) {
+                                {
+                                    return d.target.x;
+                                }
+                            })
+                            .attr("y2", function (d) {
+                                {
+                                    return d.target.y;
+                                }
+                            });
+
+                        node.attr("transform", function (d) {
+                            {
+                                return "translate(" + d.x + "," + d.y + ")";
+                            }
+                        });
+                    }
+                });
+
+            }
+        });
+
+    }
+
+    define({
+
+        /**
+         * Load a CSS
+         */
+        loadCSS: loadCSS,
+
+        /**
+         * Draw a graph
+         */
+        draw: draw,
+
+        version: 1.0
+
     });
-    return true;
-}
 
-function loadCSS(url) {
-    var link = document.createElement("link");
-    link.type = "text/css";
-    link.rel = "stylesheet";
-    link.href = url;
-    document.getElementsByTagName("head")[0].appendChild(link);
-}
-
-function draw(selector, json) {
-    if (!loadD3()) return;
-    requirejs(['d3'], function(d3) {{
-
-        var width = 960,
-        height = 500;
-
-        var svg = d3.select(selector)
-            .attr("width", width)
-            .attr("height", height);
-
-        var force = d3.layout.force()
-            .gravity(.05)
-            .distance(100)
-            .charge(-100)
-            .size([width, height])
-            .nodes(json.nodes)
-            .links(json.links)
-            .start();
-
-          var link = svg.selectAll(".link")
-              .data(json.links)
-            .enter().append("line")
-              .style("stroke", "#aaa")
-            .style("stroke-width", "3");
-
-          var node = svg.selectAll(".node")
-              .data(json.nodes)
-            .enter().append("g")
-              .attr("class", "node")
-              .call(force.drag);
-
-          node.append("circle")
-              .attr("r","10")
-              .style("stroke", "#aaa")
-              .style("stroke-width", "3")
-              .style("fill", "#ccc");
-
-          node.append("text")
-              .attr("dx", 0)
-              .attr("dy", "24px")
-              .attr("text-anchor", "middle")
-              .style("stroke", "#666")
-              .style("font-family", "'Fira Sans', Arial, sans-serif")
-              .style("font-size", "8pt")
-              .text(function(d) {{ return d.name || d.title }});
-
-          force.on("tick", function() {{
-            link.attr("x1", function(d) {{ return d.source.x; }})
-                .attr("y1", function(d) {{ return d.source.y; }})
-                .attr("x2", function(d) {{ return d.target.x; }})
-                .attr("y2", function(d) {{ return d.target.y; }});
-
-            node.attr("transform", function(d) {{ return "translate(" + d.x + "," + d.y + ")"; }});
-          }});
-
-    }});
-
-}
-
-define({
-
-    /**
-     * Load a CSS
-     */
-    loadCSS: loadCSS,
-
-    /**
-     * Draw a graph
-     */
-    draw: draw,
-
-    version: 1.0
-
-});
+})();
