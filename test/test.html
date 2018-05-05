@@ -1,0 +1,15 @@
+<!doctype HTML>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.jsdelivr.net/npm/requirejs@2.1.20/require.min.js"></script>
+    <script src="../dist/js2neo.js"></script>
+</head>
+<body>
+    <svg id="foo"></svg>
+    <script>js2neo.draw("#foo", {
+        nodes: [{name: "Alice"}, {name: "Bob"}],
+        links: [{source: 0, target: 1}]
+    })</script>
+</body>
+</html>
