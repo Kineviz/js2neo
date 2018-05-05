@@ -16,12 +16,13 @@
 
 (function () {
 
+    if (!window.requirejs) {
+        console.log("RequireJS not available :(");
+        return;
+    }
+
     function loadD3() {
         if (window.d3) return true;
-        if (!window.requirejs) {
-            console.log("Can't load D3 library :(");
-            return false;
-        }
         requirejs.config({
             paths: {
                 d3: '//d3js.org/d3.v3.min'
@@ -98,7 +99,7 @@
 
     }
 
-    this.js2neo = {
+    define({
 
         /**
          * Load a CSS
@@ -112,6 +113,6 @@
 
         version: 1.0
 
-    };
+    });
 
 })();
