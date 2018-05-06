@@ -35,7 +35,7 @@
         document.getElementsByTagName("head")[0].appendChild(link);
     }
 
-    function draw(selector, json) {
+    function draw(container, data, style) {
         if (!loadD3()) return;
         require(['d3'], function (d3) {
             {
@@ -43,7 +43,11 @@
                 var width = 960,
                     height = 500;
 
-                var svg = d3.select(selector)
+                style = style || {};
+                var nodeStyle = style["node"] || {};
+                var relationshipStyle = style["relationship"] || {};
+
+                var svg = d3.select(container)
                     .attr("width", width)
                     .attr("height", height);
 
@@ -52,24 +56,24 @@
                     .distance(100)
                     .charge(-100)
                     .size([width, height])
-                    .nodes(json.nodes)
-                    .links(json.links)
+                    .nodes(data.nodes)
+                    .links(data.links)
                     .start();
 
                 var link = svg.selectAll(".link")
-                    .data(json.links)
+                    .data(data.links)
                     .enter().append("line")
-                    .style("stroke", "#aaa")
-                    .style("stroke-width", "3");
+                    .style("stroke", relationshipStyle["color"] || "#A5ABB6")
+                    .style("stroke-width", relationshipStyle["shaft-width"] || 1);
 
                 var node = svg.selectAll(".node")
-                    .data(json.nodes)
+                    .data(data.nodes)
                     .enter().append("g")
                     .attr("class", "node")
                     .call(force.drag);
 
                 node.append("circle")
-                    .attr("r", "10")
+                    .attr("r", (nodeStyle["diameter"] || 50) / 2)
                     .style("stroke", "#aaa")
                     .style("stroke-width", "3")
                     .style("fill", "#ccc");
