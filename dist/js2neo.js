@@ -74,8 +74,10 @@
                     .attr("class", "node")
                     .call(force.drag);
 
+                var radius = (getStyle(["node", "diameter"]) || 50) / 2;
+                console.log(radius);
                 node.append("circle")
-                    .attr("r", (getStyle(["node", "diameter"]) || 50) / 2 + "")
+                    .attr("r", radius)
                     .style("stroke", "#aaa")
                     .style("stroke-width", "3")
                     .style("fill", "#ccc");
