@@ -43,9 +43,11 @@
                 var width = 960,
                     height = 500;
 
-                style = style || {};
-                var nodeStyle = style["node"] || {};
-                var relationshipStyle = style["relationship"] || {};
+                function getStyle(keys) {
+                    return keys.reduce(function(obj, key) {
+                        return (obj && obj[key] !== 'undefined') ? obj[key] : undefined;
+                    }, style || {});
+                }
 
                 var svg = d3.select(container)
                     .attr("width", width)
@@ -63,8 +65,8 @@
                 var link = svg.selectAll(".link")
                     .data(data.links)
                     .enter().append("line")
-                    .style("stroke", relationshipStyle["color"] || "#A5ABB6")
-                    .style("stroke-width", relationshipStyle["shaft-width"] || 1);
+                    .style("stroke", getStyle(["relationship", "color"]) || "#A5ABB6")
+                    .style("stroke-width", getStyle(["relationship", "shaft-width"]) || 1);
 
                 var node = svg.selectAll(".node")
                     .data(data.nodes)
@@ -73,7 +75,7 @@
                     .call(force.drag);
 
                 node.append("circle")
-                    .attr("r", (nodeStyle["diameter"] || 50) / 2)
+                    .attr("r", (getStyle(["node", "diameter"]) || 50) / 2)
                     .style("stroke", "#aaa")
                     .style("stroke-width", "3")
                     .style("fill", "#ccc");
