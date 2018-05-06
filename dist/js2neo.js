@@ -75,7 +75,7 @@
                     .call(force.drag);
 
                 node.append("circle")
-                    .attr("r", (getStyle(["node", "diameter"]) || 50) / 2)
+                    .attr("r", (getStyle(["node", "diameter"]) || 50) / 2 + "")
                     .style("stroke", "#aaa")
                     .style("stroke-width", "3")
                     .style("fill", "#ccc");
