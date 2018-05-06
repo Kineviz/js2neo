@@ -66,7 +66,7 @@
                     .data(data.links)
                     .enter().append("line")
                     .style("stroke", getStyle(["relationship", "color"]) || "#A5ABB6")
-                    .style("stroke-width", getStyle(["relationship", "shaft-width"]) || 1);
+                    .style("stroke-width", getStyle(["relationship", "shaft-width"]) || "3px");
 
                 var node = svg.selectAll(".node")
                     .data(data.nodes)
@@ -75,7 +75,7 @@
                     .call(force.drag);
 
                 node.append("circle")
-                    .style("r", "calc(" + (getStyle(["node", "diameter"]) || "50px") + " / 2)")
+                    .style("r", "calc(" + (getStyle(["node", "diameter"]) || "20px") + " / 2)")
                     .style("stroke", "#aaa")
                     .style("stroke-width", "3")
                     .style("fill", "#ccc");
