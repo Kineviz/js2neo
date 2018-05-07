@@ -40,6 +40,7 @@
         require(['d3'], function (d3) {
             {
                 var style = style || {};
+                console.log(style);
 
                 var width = 960,
                     height = 500;
