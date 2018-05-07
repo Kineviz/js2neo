@@ -39,8 +39,7 @@
         if (!loadD3()) return;
         require(['d3'], function (d3) {
             {
-                var style = style || {};
-                console.log(style);
+                style = style || {};
 
                 var width = 960,
                     height = 500;
