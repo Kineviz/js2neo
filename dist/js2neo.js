@@ -75,7 +75,7 @@
 
                 node.append("text")
                     .attr("dx", style.node_text_dx || "0px")
-                    .attr("dy", style.node_text_dx || "24px")
+                    .attr("dy", style.node_text_dy || "24px")
                     .text(function (d) { return d.name || d.title });
 
                 force.on("tick", function () {
