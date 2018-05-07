@@ -35,19 +35,13 @@
         document.getElementsByTagName("head")[0].appendChild(link);
     }
 
-    function draw(container, data, style) {
+    function draw(container, data) {
         if (!loadD3()) return;
         require(['d3'], function (d3) {
             {
 
                 var width = 960,
                     height = 500;
-
-                function getStyle(keys) {
-                    return keys.reduce(function(obj, key) {
-                        return (obj && obj[key] !== 'undefined') ? obj[key] : undefined;
-                    }, style || {});
-                }
 
                 var svg = d3.select(container)
                     .attr("width", width)
@@ -64,9 +58,12 @@
 
                 var link = svg.selectAll(".link")
                     .data(data.links)
-                    .enter().append("line")
-                    .style("stroke", getStyle(["relationship", "color"]) || "#A5ABB6")
-                    .style("stroke-width", getStyle(["relationship", "shaft-width"]) || "3px");
+                    .enter().append("g")
+                    .attr("class", "link");
+
+                link.append("line");
+                    // .style("stroke", "#aaa")
+                    // .style("stroke-width", getStyle(["relationship", "shaft-width"]) || "3px");
 
                 var node = svg.selectAll(".node")
                     .data(data.nodes)
@@ -74,11 +71,11 @@
                     .attr("class", "node")
                     .call(force.drag);
 
-                node.append("circle")
-                    .style("r", "calc(" + (getStyle(["node", "diameter"]) || "20px") + " / 2)")
-                    .style("stroke", "#aaa")
-                    .style("stroke-width", "3")
-                    .style("fill", "#ccc");
+                node.append("circle");
+                    // .style("r", "calc(" + (getStyle(["node", "diameter"]) || "20px") + " / 2)")
+                    // .style("stroke", "#aaa")
+                    // .style("stroke-width", "3")
+                    // .style("fill", "#ccc");
 
                 node.append("text")
                     .attr("dx", 0)
