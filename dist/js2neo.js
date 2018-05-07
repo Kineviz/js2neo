@@ -35,10 +35,11 @@
         document.getElementsByTagName("head")[0].appendChild(link);
     }
 
-    function draw(container, data) {
+    function draw(container, data, style) {
         if (!loadD3()) return;
         require(['d3'], function (d3) {
             {
+                var style = style || {};
 
                 var width = 960,
                     height = 500;
@@ -69,14 +70,12 @@
                     .attr("class", "node")
                     .call(force.drag);
 
-                node.append("circle");
+                node.append("circle")
+                    .attr("r", style.node_circle_r || "10px");
 
-                var g = node.append("g")
-                    .attr("class", "text");
-
-                g.append("text")
-                    // .attr("dx", 0)
-                    // .attr("dy", "24px")
+                node.append("text")
+                    .attr("dx", style.node_text_dx || "0px")
+                    .attr("dy", style.node_text_dx || "24px")
                     .text(function (d) { return d.name || d.title });
 
                 force.on("tick", function () {
