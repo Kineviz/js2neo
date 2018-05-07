@@ -71,9 +71,12 @@
 
                 node.append("circle");
 
-                node.append("text")
-                    .attr("dx", 0)
-                    .attr("dy", "24px")
+                var g = node.append("g")
+                    .attr("class", "text");
+
+                g.append("text")
+                    // .attr("dx", 0)
+                    // .attr("dy", "24px")
                     .text(function (d) { return d.name || d.title });
 
                 force.on("tick", function () {
