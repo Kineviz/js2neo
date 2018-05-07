@@ -61,7 +61,7 @@
                     .enter().append("g")
                     .attr("class", "link");
 
-                link.append("line");
+                var line = link.append("line");
                     // .style("stroke", "#aaa")
                     // .style("stroke-width", getStyle(["relationship", "shaft-width"]) || "3px");
 
@@ -78,16 +78,16 @@
                     // .style("fill", "#ccc");
 
                 node.append("text")
-                    .attr("dx", 0)
-                    .attr("dy", "24px")
-                    .attr("text-anchor", "middle")
-                    .style("stroke", "#666")
-                    .style("font-family", "'Fira Sans', Arial, sans-serif")
-                    .style("font-size", "8pt")
+                    // .attr("dx", 0)
+                    // .attr("dy", "24px")
+                    // .attr("text-anchor", "middle")
+                    // .style("stroke", "#666")
+                    // .style("font-family", "'Fira Sans', Arial, sans-serif")
+                    // .style("font-size", "8pt")
                     .text(function (d) { return d.name || d.title });
 
                 force.on("tick", function () {
-                    link.attr("x1", function (d) { return d.source.x; })
+                    line.attr("x1", function (d) { return d.source.x; })
                         .attr("y1", function (d) { return d.source.y; })
                         .attr("x2", function (d) { return d.target.x; })
                         .attr("y2", function (d) { return d.target.y; });
