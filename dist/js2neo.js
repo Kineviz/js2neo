@@ -62,8 +62,6 @@
                     .attr("class", "link");
 
                 var line = link.append("line");
-                    // .style("stroke", "#aaa")
-                    // .style("stroke-width", getStyle(["relationship", "shaft-width"]) || "3px");
 
                 var node = svg.selectAll(".node")
                     .data(data.nodes)
@@ -72,18 +70,10 @@
                     .call(force.drag);
 
                 node.append("circle");
-                    // .style("r", "calc(" + (getStyle(["node", "diameter"]) || "20px") + " / 2)")
-                    // .style("stroke", "#aaa")
-                    // .style("stroke-width", "3")
-                    // .style("fill", "#ccc");
 
                 node.append("text")
-                    // .attr("dx", 0)
-                    // .attr("dy", "24px")
-                    // .attr("text-anchor", "middle")
-                    // .style("stroke", "#666")
-                    // .style("font-family", "'Fira Sans', Arial, sans-serif")
-                    // .style("font-size", "8pt")
+                    .attr("dx", 0)
+                    .attr("dy", "24px")
                     .text(function (d) { return d.name || d.title });
 
                 force.on("tick", function () {
