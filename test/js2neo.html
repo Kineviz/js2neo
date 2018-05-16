@@ -1,0 +1,30 @@
+<!doctype HTML>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <script src="../src/js2neo.js"></script>
+</head>
+<body>
+<form>
+    <script>
+        var graph = js2neo.graph();
+
+        function run(cypher) {
+            graph.run({
+                cypher: cypher,
+                onRecord: function (fields) {
+                    console.log("RECORD: " + JSON.stringify(fields));
+                }
+            });
+        }
+
+        run("RETURN 1");
+
+    </script>
+    <label>
+        <input type="text" id="cypher"/>
+    </label>
+    <input type="button" value="Run" onclick='run(document.getElementById("cypher").value)'/>
+</form>
+</body>
+</html>
