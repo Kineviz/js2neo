@@ -1,9 +1,7 @@
 (function () {
-    var B = Uint8Array;
 
     function pack(values) {
-        var b = String.fromCharCode,
-            d = "";
+        var d = "";
 
         function pack1(value) {
             var i,  // loop counter
@@ -14,25 +12,25 @@
             else if (typeof value === "string") {
                 z = value.length;
                 if (z < 0x10) {
-                    d += b(0x80 + z) + value;
+                    d += String.fromCharCode(0x80 + z) + value;
                 }
                 else if (z < 0x100) {
-                    d += "\xD0" + b(z) + value;
+                    d += "\xD0" + String.fromCharCode(z) + value;
                 }
                 else if (z < 0x10000) {
-                    d += "\xD1" + b(z >> 8) + b(z & 255) + value;
+                    d += "\xD1" + String.fromCharCode(z >> 8) + String.fromCharCode(z & 255) + value;
                 }
                 // TODO
             }
             else if (value instanceof Structure) {
-                d += b(0xB0 + value.fields.length, value.tag);
+                d += String.fromCharCode(0xB0 + value.fields.length, value.tag);
                 for (i = 0; i < value.fields.length; i++) {
                     pack1(value.fields[i]);
                 }
             }
             else {
                 var keys = Object.getOwnPropertyNames(value);
-                d += b(0xA0 + keys.length);
+                d += String.fromCharCode(0xA0 + keys.length);
                 for (i = 0; i < keys.length; i++) {
                     pack1(keys[i]);
                     pack1(value[keys[i]]);
@@ -46,23 +44,27 @@
         return d;
     }
 
-    function unpack(data) {
-        var values = [];
-        var p = 0;
+    function unpack(view) {
+        var values = [],
+            p = 0;
 
-        function unpackString(size)
+        function using(size)
         {
-            var value = data.substr(p, size);
-            p += size;
-            return value;
+            var x = p; p += size; return x;
+        }
+
+        function unpackString(size) {
+            var s = "", end = p + size;
+            for (; p < end; p++)
+                s += String.fromCharCode(view.getUint8(p));
+            return s;
         }
 
         function unpackList(size)
         {
             var list = [];
-            for (var i = 0; i < size; i++) {
+            for (var i = 0; i < size; i++)
                 list.push(unpack1());
-            }
             return list;
         }
 
@@ -78,56 +80,77 @@
 
         function unpackStructure(size)
         {
-            var tag = data.charCodeAt(p++),
+            var tag = view.getUint8(p++),
                 fields = [];
-            for (var i = 0; i < size; i++) {
+            for (var i = 0; i < size; i++)
                 fields.push(unpack1());
-            }
             return new Structure(tag, fields);
         }
 
         function unpack1() {
-            var marker = data.charCodeAt(p++);
-            if (marker === 0xC0) {
+            var m = view.getUint8(p++);
+            if (m < 128)
+                return m;
+            else if (m < 144)
+                return unpackString(m - 128);
+            else if (m < 160)
+                return unpackList(m - 144);
+            else if (m < 176)
+                return unpackMap(m - 160);
+            else if (m < 192)
+                return unpackStructure(m - 176);
+            else if (m < 193)
                 return null;
-            }
-            else if (marker === 0xC2) {
+            else if (m < 194)
+                return view.getFloat64(using(8));
+            else if (m < 195)
                 return false;
-            }
-            else if (marker === 0xC3) {
+            else if (m < 196)
                 return true;
-            }
-            else if (marker >= 0x00 && marker <= 0x7F) {
-                return marker;
-            }
-            else if (marker >= 0x80 && marker <= 0x8F) {
-                return unpackString(marker - 0x80);
-            }
-            else if (marker >= 0x90 && marker <= 0x9F) {
-                return unpackList(marker - 0x90);
-            }
-            else if (marker >= 0xA0 && marker <= 0xAF) {
-                return unpackMap(marker - 0xA0);
-            }
-            else if (marker >= 0xB0 && marker <= 0xBF) {
-                return unpackStructure(marker - 0xB0);
-            }
-            else if (marker === 0xD0)
-            {
-                return unpackString(data.charCodeAt(p++));
-            }
-            else if (marker >= 0xF0 && marker <= 0xFF) {
-                return marker - 0x100;
-            }
-            else {
-                console.log(marker);
+            else if (m < 200)
                 return undefined;
-            }
+            else if (m < 201)
+                return view.getInt8(using(1));
+            else if (m < 202)
+                return view.getInt16(using(2));
+            else if (m < 203)
+                return view.getInt32(using(4));
+            else if (m < 204)
+                return [view.getUint32(using(4)), view.getUint32(using(4))];
+            else if (m < 208)
+                return undefined;
+            else if (m < 209)
+                return unpackString(view.getUint8(p++));
+            else if (m < 210)
+                return unpackString(view.getUint16(using(2)));
+            else if (m < 211)
+                return unpackString(view.getUint32(using(4)));
+            else if (m < 212)
+                return undefined;
+            else if (m < 213)
+                return unpackList(view.getUint8(p++));
+            else if (m < 214)
+                return unpackList(view.getUint16(using(2)));
+            else if (m < 215)
+                return unpackList(view.getUint32(using(4)));
+            else if (m < 216)
+                return undefined;
+            else if (m < 217)
+                return unpackMap(view.getUint8(p++));
+            else if (m < 218)
+                return unpackMap(view.getUint16(using(2)));
+            else if (m < 219)
+                return unpackMap(view.getUint32(using(4)));
+            else if (m < 240)
+                // Technically, longer structures fit here,
+                // but they're never used
+                return undefined;
+            else
+                return m - 256;
         }
 
-        while (p < data.length) {
+        while (p < view.byteLength)
             values.push(unpack1());
-        }
         return values;
     }
 
@@ -142,12 +165,12 @@
 
     function encode(text)
     {
-        var data = new B(text.length);
+        var data = new Uint8Array(text.length);
         for (var i = 0; i < text.length; i++)
         {
             data[i] = text.charCodeAt(i);
         }
-        return data;
+        return data.buffer;
     }
 
     function decode(data) {
@@ -172,11 +195,7 @@
         $.socket.binaryType = "arraybuffer";
         $.rawInputBuffer = "";
         $.chunkInputBuffer = [];
-        $.requests = [];
-        $.handlers = [];
-        $.ready = false;
-
-        var init1 = new Request(
+        $.requests = [new Request(
             new Structure(0x01, ["js2neo/1.0.0-alpha.0", {
                 scheme: "basic",
                 principal: args.user || "neo4j",
@@ -188,8 +207,9 @@
                 0x7E: console.log,
                 0x7F: console.log
             }
-        );
-        $.requests.push(init1);
+        )];
+        $.handlers = [];
+        $.ready = false;
 
         function send()
         {
@@ -201,13 +221,13 @@
                 var data = pack([request.message]);
                 while(data.length > 32767)
                 {
-                    $.socket.send(new B([0x7F, 0xFF]));
+                    $.socket.send(new Uint8Array([0x7F, 0xFF]));
                     $.socket.send(encode(data.substr(0, 32767)));
                     data = data.substr(32767);
                 }
-                $.socket.send(new B([data.length >> 8, data.length & 0xFF]));
+                $.socket.send(new Uint8Array([data.length >> 8, data.length & 0xFF]));
                 $.socket.send(encode(data));
-                $.socket.send(new B([0x00, 0x00]));
+                $.socket.send(new Uint8Array([0x00, 0x00]));
             }
         }
 
@@ -217,28 +237,23 @@
             var v = new DataView(event.data);
             $.protocolVersion = v.getInt32(0, false);
             console.log("Using protocol version " + $.protocolVersion);
-            init();
+            $.socket.addEventListener('message', onChunkedData);
+            send();
+            $.ready = true;
         }
 
         function onMessage(data)
         {
-            var message = unpack(data)[0];
-            var handler;
-            if (message.tag === 0x71) {
-                handler = $.handlers[0];
-            }
-            else
-            {
-                handler = $.handlers.shift();
-            }
-            handler[message.tag](message.fields[0]);
+            var message = unpack(new DataView(data))[0],
+                handler = (message.tag === 0x71) ? $.handlers[0] : $.handlers.shift();
+            if (handler) handler[message.tag](message.fields[0]);
         }
 
         function onChunk(data)
         {
             if (data === "")
             {
-                onMessage($.chunkInputBuffer.join());
+                onMessage(encode($.chunkInputBuffer.join()));
                 $.chunkInputBuffer = [];
             }
             else {
@@ -264,18 +279,12 @@
             }
         }
 
-        function init() {
-            $.socket.addEventListener('message', onChunkedData);
-            send();
-            $.ready = true;
-        }
-
         $.socket.addEventListener('message', onHandshake);
 
         // Connection opened
         $.socket.addEventListener('open', function (event) {
             // Handshake
-            var MAGIC = new B([0x60, 0x60, 0xB0, 0x17]);
+            var MAGIC = new Uint8Array([0x60, 0x60, 0xB0, 0x17]);
             var VERSIONS = new DataView(new ArrayBuffer(16));
             VERSIONS.setInt32(0, 2, false);
             VERSIONS.setInt32(4, 1, false);
@@ -322,7 +331,9 @@
 
     window.js2neo = {
 
-        graph: function(args) { return new Graph(args); }
+        graph: function(args) { return new Graph(args); },
+
+        Z: Z
 
     };
 
