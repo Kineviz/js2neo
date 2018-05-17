@@ -194,27 +194,27 @@
         $.socket.binaryType = "arraybuffer";
         $.rawInputBuffer = "";
         $.chunkInputBuffer = [];
-        $.requests = [new Request(
-            new Structure(0x01, ["js2neo/1.0.0-alpha.0", {
-                scheme: "basic",
-                principal: args.user || "neo4j",
-                credentials: args.password || "password"
-            }]),
-            {
-                0x70: console.log,
-                0x7F: console.log
-            }
-        )];
-        $.handlers = [];
+        var requests = [new Request(
+                new Structure(0x01, ["js2neo/1.0.0-alpha.0", {
+                    scheme: "basic",
+                    principal: args.user || "neo4j",
+                    credentials: args.password || "password"
+                }]),
+                {
+                    0x70: console.log,
+                    0x7F: console.log
+                }
+            )],
+            handlers = [],
+            timers = [];
         $.ready = false;
-        $.t0 = [];
 
         function send()
         {
-            while($.requests.length > 0)
+            while(requests.length > 0)
             {
-                var request = $.requests.shift();
-                $.handlers.push(request.handler);
+                var request = requests.shift();
+                handlers.push(request.handler);
                 // console.log("C: " + request.message);
                 var data = pack([request.message]);
                 while(data.length > 32767)
@@ -242,7 +242,7 @@
         function onMessage(data)
         {
             var h, message = unpack(new DataView(data))[0],
-                handler = (message.tag === 0x71) ? $.handlers[0] : $.handlers.shift();
+                handler = (message.tag === 0x71) ? handlers[0] : handlers.shift();
             if (handler && (h = handler[message.tag])) h(message.fields[0]);
         }
 
@@ -297,24 +297,24 @@
                     0x7F: console.log
                 }
             );
-            $.requests.push(ack);
+            requests.push(ack);
         }
 
         $.run = function(workload) {
-            $.t0.push(new Date());
+            timers.push(new Date());
             var cypher = workload.cypher;
             if (cypher.length > 0) {
-                $.requests.push(new Request(
+                requests.push(new Request(
                     new Structure(0x10, [cypher, workload.parameters || {}]),
                     {
                         0x70: workload.onHeader || console.log,
                         0x7F: onFailure
                     }
                 ));
-                $.requests.push(new Request(
+                requests.push(new Request(
                     new Structure(0x3F, []),
                     {
-                        0x70: function(metadata) { metadata.time = (new Date() - $.t0.shift()) + "ms"; (workload.onFooter || console.log)(metadata); },
+                        0x70: function(metadata) { metadata.time = (new Date() - timers.shift()) + "ms"; (workload.onFooter || console.log)(metadata); },
                         0x71: workload.onRecord || console.log,
                         0x7F: onFailure
                     }

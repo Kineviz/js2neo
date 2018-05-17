@@ -32,7 +32,8 @@
         <form>
 
             <div class="query">
-                <textarea id="cypher" style="width:100%" rows="3" title="Cypher query"></textarea>
+                <textarea id="cypher" style="width:100%" rows="3" title="Cypher query">MATCH (a:Person)-[:ACTED_IN]->(m) WHERE a.name =~ 'K.*'
+RETURN a.name, a.born, collect(m.title)</textarea>
             </div>
             <div class="toolbar" style="text-align:right">
                 <input type="button" value="Run" onclick='run($("#cypher").val())'/>

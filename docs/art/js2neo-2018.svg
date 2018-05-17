@@ -15,7 +15,7 @@
    version="1.1"
    inkscape:version="0.92.3 (2405546, 2018-03-11)"
    sodipodi:docname="js2neo-2018.svg"
-   inkscape:export-filename="/home/nigel/src/py2neo/art/py2neo-2016.1653x964.png"
+   inkscape:export-filename="/home/technige/work/js2neo/art/js2neo-2018.png"
    inkscape:export-xdpi="299.92789"
    inkscape:export-ydpi="299.92789">
   <defs
@@ -28,7 +28,7 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="1.4142136"
-     inkscape:cx="333.81369"
+     inkscape:cx="206.18092"
      inkscape:cy="-20.538184"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
@@ -51,7 +51,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
