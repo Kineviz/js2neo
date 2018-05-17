@@ -89,64 +89,62 @@
 
         function unpack1() {
             var m = view.getUint8(p++);
-            if (m < 128)
+            if (m < 0x80)
                 return m;
-            else if (m < 144)
-                return unpackString(m - 128);
-            else if (m < 160)
-                return unpackList(m - 144);
-            else if (m < 176)
-                return unpackMap(m - 160);
-            else if (m < 192)
-                return unpackStructure(m - 176);
-            else if (m < 193)
+            else if (m < 0x90)
+                return unpackString(m - 0x80);
+            else if (m < 0xA0)
+                return unpackList(m - 0x90);
+            else if (m < 0xB0)
+                return unpackMap(m - 0xA0);
+            else if (m < 0xC0)
+                return unpackStructure(m - 0xB0);
+            else if (m < 0xC1)
                 return null;
-            else if (m < 194)
+            else if (m < 0xC2)
                 return view.getFloat64(using(8));
-            else if (m < 195)
-                return false;
-            else if (m < 196)
-                return true;
-            else if (m < 200)
+            else if (m < 0xC4)
+                return !!(m & 1);
+            else if (m < 0xC8)
                 return undefined;
-            else if (m < 201)
+            else if (m < 0xC9)
                 return view.getInt8(using(1));
-            else if (m < 202)
+            else if (m < 0xCA)
                 return view.getInt16(using(2));
-            else if (m < 203)
+            else if (m < 0xCB)
                 return view.getInt32(using(4));
-            else if (m < 204)
+            else if (m < 0xCC)
                 return [view.getUint32(using(4)), view.getUint32(using(4))];
-            else if (m < 208)
+            else if (m < 0xD0)
                 return undefined;
-            else if (m < 209)
+            else if (m < 0xD1)
                 return unpackString(view.getUint8(p++));
-            else if (m < 210)
+            else if (m < 0xD2)
                 return unpackString(view.getUint16(using(2)));
-            else if (m < 211)
+            else if (m < 0xD3)
                 return unpackString(view.getUint32(using(4)));
-            else if (m < 212)
+            else if (m < 0xD4)
                 return undefined;
-            else if (m < 213)
+            else if (m < 0xD5)
                 return unpackList(view.getUint8(p++));
-            else if (m < 214)
+            else if (m < 0xD6)
                 return unpackList(view.getUint16(using(2)));
-            else if (m < 215)
+            else if (m < 0xD7)
                 return unpackList(view.getUint32(using(4)));
-            else if (m < 216)
+            else if (m < 0xD8)
                 return undefined;
-            else if (m < 217)
+            else if (m < 0xD9)
                 return unpackMap(view.getUint8(p++));
-            else if (m < 218)
+            else if (m < 0xDA)
                 return unpackMap(view.getUint16(using(2)));
-            else if (m < 219)
+            else if (m < 0xDB)
                 return unpackMap(view.getUint32(using(4)));
-            else if (m < 240)
+            else if (m < 0xF0)
                 // Technically, longer structures fit here,
                 // but they're never used
                 return undefined;
             else
-                return m - 256;
+                return m - 0x100;
         }
 
         while (p < view.byteLength)
@@ -158,9 +156,9 @@
     {
         this.tag = tag;
         this.fields = fields;
-        this.toString = function() {
-            return "Structure<" + this.tag + ">(" + JSON.stringify(this.fields) + ")";
-        }
+        // this.toString = function() {
+        //     return "Structure<" + this.tag + ">(" + JSON.stringify(this.fields) + ")";
+        // }
     }
 
     function encode(text)
@@ -188,7 +186,7 @@
         this.handler = handler;
     }
 
-    function Graph(args) {
+    function Bolt(args) {
         var $ = this;
         args = args || {};
         $.socket = new WebSocket("ws://" + (args.host || "localhost") + ":" + (args.port || 7687));
@@ -203,13 +201,12 @@
             }]),
             {
                 0x70: console.log,
-                0x71: console.log,
-                0x7E: console.log,
                 0x7F: console.log
             }
         )];
         $.handlers = [];
         $.ready = false;
+        $.t0 = [];
 
         function send()
         {
@@ -217,7 +214,7 @@
             {
                 var request = $.requests.shift();
                 $.handlers.push(request.handler);
-                console.log("C: " + request.message);
+                // console.log("C: " + request.message);
                 var data = pack([request.message]);
                 while(data.length > 32767)
                 {
@@ -233,20 +230,19 @@
 
         function onHandshake(event)
         {
-            $.socket.removeEventListener('message', onHandshake);
             var v = new DataView(event.data);
             $.protocolVersion = v.getInt32(0, false);
             console.log("Using protocol version " + $.protocolVersion);
-            $.socket.addEventListener('message', onChunkedData);
+            $.socket.onmessage = onChunkedData;
             send();
             $.ready = true;
         }
 
         function onMessage(data)
         {
-            var message = unpack(new DataView(data))[0],
+            var h, message = unpack(new DataView(data))[0],
                 handler = (message.tag === 0x71) ? $.handlers[0] : $.handlers.shift();
-            if (handler) handler[message.tag](message.fields[0]);
+            if (handler && (h = handler[message.tag])) h(message.fields[0]);
         }
 
         function onChunk(data)
@@ -279,50 +275,49 @@
             }
         }
 
-        $.socket.addEventListener('message', onHandshake);
+        $.socket.onmessage = onHandshake;
+        $.socket.onerror = console.log;
+        $.socket.onclose = console.log;
 
         // Connection opened
-        $.socket.addEventListener('open', function (event) {
+        $.socket.onopen = function () {
             // Handshake
-            var MAGIC = new Uint8Array([0x60, 0x60, 0xB0, 0x17]);
-            var VERSIONS = new DataView(new ArrayBuffer(16));
-            VERSIONS.setInt32(0, 2, false);
-            VERSIONS.setInt32(4, 1, false);
-            $.socket.send(MAGIC);
-            $.socket.send(VERSIONS);
-        });
-
-        $.socket.addEventListener('error', function (event) {
-            console.log(event);
-        });
-
-        $.socket.addEventListener('close', function (event) {
-            console.log(event);
-        });
+            $.socket.send(new Uint8Array([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
+        };
         $.protocolVersion = null;
+
+        function onFailure(metadata)
+        {
+            console.log(JSON.stringify(metadata));
+            var ack = new Request(
+                new Structure(0x0E, []),
+                {
+                    0x70: console.log,
+                    0x7F: console.log
+                }
+            );
+            $.requests.push(ack);
+        }
+
         $.run = function(workload) {
+            $.t0.push(new Date());
             var cypher = workload.cypher;
             if (cypher.length > 0) {
-                var run = new Request(
+                $.requests.push(new Request(
                     new Structure(0x10, [cypher, workload.parameters || {}]),
                     {
-                        0x70: console.log,
-                        0x71: console.log,
-                        0x7E: console.log,
-                        0x7F: console.log
+                        0x70: workload.onHeader || console.log,
+                        0x7F: onFailure
                     }
-                );
-                var pull = new Request(
+                ));
+                $.requests.push(new Request(
                     new Structure(0x3F, []),
                     {
-                        0x70: console.log,
-                        0x71: console.log,
-                        0x7E: console.log,
-                        0x7F: console.log
+                        0x70: function(metadata) { metadata.time = (new Date() - $.t0.shift()) + "ms"; (workload.onFooter || console.log)(metadata); },
+                        0x71: workload.onRecord || console.log,
+                        0x7F: onFailure
                     }
-                );
-                $.requests.push(run);
-                $.requests.push(pull);
+                ));
             }
             if ($.ready) send();
         }
@@ -331,9 +326,7 @@
 
     window.js2neo = {
 
-        graph: function(args) { return new Graph(args); },
-
-        Z: Z
+        bolt: function(args) { return new Bolt(args); }
 
     };
 

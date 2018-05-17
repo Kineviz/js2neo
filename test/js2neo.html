@@ -1,30 +1,97 @@
-<!doctype HTML>
-<html>
-<head>
-    <meta charset="UTF-8">
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous">
+
+    <title>[:js2neo]</title>
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js" integrity="sha384-smHYKdLADwkXOn1EmN1qk/HfnUcbVRZyYmZ4qpPea6sjB/pTJ0euyQp0Mk8ck+5T" crossorigin="anonymous"></script>
     <script src="../src/js2neo.js"></script>
-</head>
-<body>
-<form>
+    <style>
+        textarea, table { font-family: monospace }
+    </style>
+  </head>
+  <body style="overflow-y:scroll">
+
+    <div class="container">
+
+        <h1 style="text-align: center;padding: 2rem 0"><img src="../art/js2neo-2018.280x50.png"></h1>
+
+        <p>
+            The <em>js2neo</em> library is a tiny JavaScript library that can be dropped into any web page to provide access to Neo4j.
+        </p>
+
+        <form>
+
+            <div class="query">
+                <textarea id="cypher" style="width:100%" rows="3" title="Cypher query"></textarea>
+            </div>
+            <div class="toolbar" style="text-align:right">
+                <input type="button" value="Run" onclick='run($("#cypher").val())'/>
+            </div>
+            <table id="result" class="table table-hover">
+                <thead id="result-head" class="thead-dark"></thead>
+                <tbody id="result-body"></tbody>
+                <tfoot id="result-foot" class="thead-dark"></tfoot>
+            </table>
+
+        </form>
+
+    </div>
+
     <script>
-        var graph = js2neo.graph();
+
+        var bolt = js2neo.bolt();
 
         function run(cypher) {
-            graph.run({
+            var head = document.getElementById("result-head"),
+                body = document.getElementById("result-body"),
+                foot = document.getElementById("result-foot"),
+                fields = [];
+            while (head.firstChild) head.removeChild(head.firstChild);
+            while (body.firstChild) body.removeChild(body.firstChild);
+            while (foot.firstChild) foot.removeChild(foot.firstChild);
+            bolt.run({
                 cypher: cypher,
+                onHeader: function (metadata) {
+                    var tr = document.createElement("tr");
+                    for (var i = 0; i < metadata.fields.length; i++) {
+                        fields.push(metadata.fields[i]);
+                        var th = document.createElement("th");
+                        th.appendChild(document.createTextNode(fields[i]));
+                        tr.appendChild(th);
+                    }
+                    head.appendChild(tr)
+                },
                 onRecord: function (fields) {
-                    console.log("RECORD: " + JSON.stringify(fields));
+                    var tr = document.createElement("tr");
+                    for (var i = 0; i < fields.length; i++) {
+                        var td = document.createElement("td");
+                        td.appendChild(document.createTextNode(JSON.stringify(fields[i])));
+                        tr.appendChild(td);
+                    }
+                    body.appendChild(tr)
+                },
+                onFooter: function (metadata) {
+                    var tr = document.createElement("tr");
+                    var th = document.createElement("th");
+                    th.setAttribute("colspan", "" + fields.length);
+                    th.appendChild(document.createTextNode(JSON.stringify(metadata)));
+                    tr.appendChild(th);
+                    foot.appendChild(tr)
                 }
             });
         }
 
-        run("RETURN 1");
-
     </script>
-    <label>
-        <input type="text" id="cypher"/>
-    </label>
-    <input type="button" value="Run" onclick='run(document.getElementById("cypher").value)'/>
-</form>
-</body>
+
+  </body>
 </html>
