@@ -189,7 +189,7 @@
     function Bolt(args) {
         var $ = this;
         args = args || {};
-        $.socket = new WebSocket("ws://" + (args.host || "localhost") + ":" + (args.port || 7687));
+        $.socket = new WebSocket("wss://" + (args.host || "localhost") + ":" + (args.port || 7687));
         $.socket.binaryType = "arraybuffer";
         $.rawInputBuffer = "";
         $.chunkInputBuffer = [];
