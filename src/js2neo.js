@@ -1,5 +1,7 @@
 (function () {
 
+    function NOOP() {}
+
     function pack(values) {
         var d = "";
 
@@ -22,7 +24,7 @@
                 }
                 // TODO
             }
-            else if (value instanceof Structure) {
+            else if (value instanceof $) {
                 d += String.fromCharCode(0xB0 + value.fields.length, value.tag);
                 for (i = 0; i < value.fields.length; i++) {
                     pack1(value.fields[i]);
@@ -84,7 +86,7 @@
                 fields = [];
             for (var i = 0; i < size; i++)
                 fields.push(unpack1());
-            return new Structure(tag, fields);
+            return new $(tag, fields);
         }
 
         function unpack1() {
@@ -152,13 +154,10 @@
         return values;
     }
 
-    function Structure(tag, fields)
+    function $(tag, fields)
     {
         this.tag = tag;
         this.fields = fields;
-        // this.toString = function() {
-        //     return "Structure<" + this.tag + ">(" + JSON.stringify(this.fields) + ")";
-        // }
     }
 
     function encode(text)
@@ -188,16 +187,17 @@
 
     function Bolt(args) {
         args = args || {};
-        var $ = this,
-            scheme = (document.location.protocol === "https:") ? "wss" : "ws";
-        $.socket = new WebSocket(scheme + "://" + (args.host || "localhost") + ":" + (args.port || 7687));
-        $.socket.binaryType = "arraybuffer";
-        $.rawInputBuffer = "";
-        $.chunkInputBuffer = [];
-        var requests = [new Request(
-                new Structure(0x01, ["js2neo/1.0.0-alpha.0", {
+        var self = this,
+            scheme = (document.location.protocol === "https:") ? "wss" : "ws",
+            url = scheme + "://" + (args.host || "localhost") + ":" + (args.port || 7687),
+            connection = {
+                url: url,
+                user: args.user || "neo4j"
+            },
+            requests = [new Request(
+                new $(0x01, ["js2neo/1.0.0-alpha.0", {
                     scheme: "basic",
-                    principal: args.user || "neo4j",
+                    principal: connection.user,
                     credentials: args.password || "password"
                 }]),
                 {
@@ -206,8 +206,13 @@
                 }
             )],
             handlers = [],
-            timers = [];
-        $.ready = false;
+            timers = [],
+            onConnect = args.onConnect || NOOP;
+        self.rawInputBuffer = "";
+        self.chunkInputBuffer = [];
+        self.socket = new WebSocket(url);
+        self.socket.binaryType = "arraybuffer";
+        self.ready = false;
 
         function send()
         {
@@ -219,24 +224,24 @@
                 var data = pack([request.message]);
                 while(data.length > 32767)
                 {
-                    $.socket.send(new Uint8Array([0x7F, 0xFF]));
-                    $.socket.send(encode(data.substr(0, 32767)));
+                    self.socket.send(new Uint8Array([0x7F, 0xFF]));
+                    self.socket.send(encode(data.substr(0, 32767)));
                     data = data.substr(32767);
                 }
-                $.socket.send(new Uint8Array([data.length >> 8, data.length & 0xFF]));
-                $.socket.send(encode(data));
-                $.socket.send(new Uint8Array([0x00, 0x00]));
+                self.socket.send(new Uint8Array([data.length >> 8, data.length & 0xFF]));
+                self.socket.send(encode(data));
+                self.socket.send(new Uint8Array([0x00, 0x00]));
             }
         }
 
         function onHandshake(event)
         {
-            var v = new DataView(event.data);
-            $.protocolVersion = v.getInt32(0, false);
-            console.log("Using protocol version " + $.protocolVersion);
-            $.socket.onmessage = onChunkedData;
+            var view = new DataView(event.data);
+            connection.protocolVersion = view.getInt32(0, false);
+            onConnect(connection);
+            self.socket.onmessage = onChunkedData;
             send();
-            $.ready = true;
+            self.ready = true;
         }
 
         function onMessage(data)
@@ -250,24 +255,24 @@
         {
             if (data === "")
             {
-                onMessage(encode($.chunkInputBuffer.join()));
-                $.chunkInputBuffer = [];
+                onMessage(encode(self.chunkInputBuffer.join()));
+                self.chunkInputBuffer = [];
             }
             else {
-                $.chunkInputBuffer.push(data);
+                self.chunkInputBuffer.push(data);
             }
         }
 
         function onChunkedData(event)
         {
-            $.rawInputBuffer += decode(event.data);
+            self.rawInputBuffer += decode(event.data);
             var more = true;
             while (more) {
-                var chunkSize = 0x100 * $.rawInputBuffer.charCodeAt(0) + $.rawInputBuffer.charCodeAt(1);
+                var chunkSize = 0x100 * self.rawInputBuffer.charCodeAt(0) + self.rawInputBuffer.charCodeAt(1);
                 var end = 2 + chunkSize;
-                if ($.rawInputBuffer.length >= end) {
-                    onChunk($.rawInputBuffer.slice(2, end));
-                    $.rawInputBuffer = $.rawInputBuffer.substr(end);
+                if (self.rawInputBuffer.length >= end) {
+                    onChunk(self.rawInputBuffer.slice(2, end));
+                    self.rawInputBuffer = self.rawInputBuffer.substr(end);
                 }
                 else
                 {
@@ -276,22 +281,22 @@
             }
         }
 
-        $.socket.onmessage = onHandshake;
-        $.socket.onerror = console.log;
-        $.socket.onclose = console.log;
+        self.socket.onmessage = onHandshake;
+        self.socket.onerror = console.log;
+        self.socket.onclose = console.log;
 
         // Connection opened
-        $.socket.onopen = function () {
+        self.socket.onopen = function () {
             // Handshake
-            $.socket.send(new Uint8Array([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
+            self.socket.send(new Uint8Array([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
         };
-        $.protocolVersion = null;
+        self.protocolVersion = null;
 
         function onFailure(metadata)
         {
             console.log(JSON.stringify(metadata));
             var ack = new Request(
-                new Structure(0x0E, []),
+                new $(0x0E, []),
                 {
                     0x70: console.log,
                     0x7F: console.log
@@ -300,19 +305,19 @@
             requests.push(ack);
         }
 
-        $.run = function(workload) {
+        self.run = function(workload) {
             timers.push(new Date());
             var cypher = workload.cypher;
             if (cypher.length > 0) {
                 requests.push(new Request(
-                    new Structure(0x10, [cypher, workload.parameters || {}]),
+                    new $(0x10, [cypher, workload.parameters || {}]),
                     {
                         0x70: workload.onHeader || console.log,
                         0x7F: onFailure
                     }
                 ));
                 requests.push(new Request(
-                    new Structure(0x3F, []),
+                    new $(0x3F, []),
                     {
                         0x70: function(metadata) { metadata.time = (new Date() - timers.shift()) + "ms"; (workload.onFooter || console.log)(metadata); },
                         0x71: workload.onRecord || console.log,
@@ -320,7 +325,7 @@
                     }
                 ));
             }
-            if ($.ready) send();
+            if (self.ready) send();
         }
 ;
     }
