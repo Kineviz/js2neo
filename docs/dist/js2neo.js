@@ -9,9 +9,9 @@
 
         str = String.fromCharCode;
 
-    DataView.prototype.getInt64 = function(offset, littleEndian) {
-        var hi = this.getUint32(offset, littleEndian),
-            lo = this.getUint32(offset + 4, littleEndian);
+    function getInt64(view, offset, littleEndian) {
+        var hi = view.getUint32(offset, littleEndian),
+            lo = view.getUint32(offset + 4, littleEndian);
         hi = hi.toString(16);
         while (hi.length < 8)
             hi = "0" + hi;
@@ -19,7 +19,7 @@
         while (lo.length < 8)
             lo = "0" + lo;
         return parseInt("0x" + hi + lo, 16);
-    };
+    }
 
     window.js2neo = {
 
@@ -241,7 +241,7 @@
             else if (m < 0xCB)
                 return view.getInt32(using(4), false);
             else if (m < 0xCC)
-                return view.getInt64(using(8), false);
+                return getInt64(view, using(8), false);
             else if (m < 0xD0)
                 return undefined;
             else if (m < 0xD1)
