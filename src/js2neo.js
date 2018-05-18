@@ -205,20 +205,20 @@
             onConnect = args.onConnect || NOOP;
 
         function open() {
-            pvt.rawInputBuffer = "";
-            pvt.chunkInputBuffer = [];
+            pvt.inData = "";
+            pvt.inChunks = [];
             pvt.ready = false;
 
             pvt.socket = new WebSocket(pub.url);
             pvt.socket.binaryType = "arraybuffer";
             pvt.socket.onmessage = onHandshake;
-            pvt.socket.onerror = console.log;
-            pvt.socket.onclose = console.log;
+            pvt.socket.onerror = args.onError || NOOP;
+            pvt.socket.onclose = args.onClose || NOOP;
 
             // Connection opened
             pvt.socket.onopen = function () {
                 // Handshake
-                pvt.socket.send(new Uint8Array([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
+                send(new Uint8Array([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
             };
 
             requests.push(new Request(
@@ -230,6 +230,10 @@
             ));
         }
 
+        function send(data) {
+            pvt.socket.send(data);
+        }
+
         function reopen(failure)
         {
             pvt.socket.close(1002, failure.code + ": " + failure.message);
@@ -238,11 +242,7 @@
 
         function sendRequests() {
 
-            function send(data) {
-                pvt.socket.send(data);
-            }
-
-            function sendHeader(hi, lo) {
+            function sendChunkHeader(hi, lo) {
                 chunkHeader[0] = hi;
                 chunkHeader[1] = lo;
                 send(chunkHeader);
@@ -253,13 +253,13 @@
                     data = pack([request.message]);
                 handlers.push(request.handler);
                 while (data.length > 32767) {
-                    sendHeader(0x7F, 0xFF);
+                    sendChunkHeader(0x7F, 0xFF);
                     send(encode(data.substr(0, 32767)));
                     data = data.substr(32767);
                 }
-                sendHeader(data.length >> 8, data.length & 0xFF);
+                sendChunkHeader(data.length >> 8, data.length & 0xFF);
                 send(encode(data));
-                sendHeader(0x00, 0x00);
+                sendChunkHeader(0x00, 0x00);
             }
         }
 
@@ -286,24 +286,24 @@
         {
             if (data === "")
             {
-                onMessage(encode(pvt.chunkInputBuffer.join()));
-                pvt.chunkInputBuffer = [];
+                onMessage(encode(pvt.inChunks.join()));
+                pvt.inChunks = [];
             }
             else {
-                pvt.chunkInputBuffer.push(data);
+                pvt.inChunks.push(data);
             }
         }
 
         function onChunkedData(event)
         {
-            pvt.rawInputBuffer += decode(event.data);
+            pvt.inData += decode(event.data);
             var more = true;
             while (more) {
-                var chunkSize = 0x100 * pvt.rawInputBuffer.charCodeAt(0) + pvt.rawInputBuffer.charCodeAt(1);
+                var chunkSize = 0x100 * pvt.inData.charCodeAt(0) + pvt.inData.charCodeAt(1);
                 var end = 2 + chunkSize;
-                if (pvt.rawInputBuffer.length >= end) {
-                    onChunk(pvt.rawInputBuffer.slice(2, end));
-                    pvt.rawInputBuffer = pvt.rawInputBuffer.substr(end);
+                if (pvt.inData.length >= end) {
+                    onChunk(pvt.inData.slice(2, end));
+                    pvt.inData = pvt.inData.substr(end);
                 }
                 else
                 {

@@ -53,8 +53,18 @@ RETURN a.name, a.born, collect(m.title)</textarea>
 
         var bolt = js2neo.bolt({
             onConnect: function(metadata) {
-                console.log("CONNECTED!");
+                console.log("CONNECTED");
                 console.log(metadata);
+            },
+            onClose: function(event)
+            {
+                console.log("CLOSE");
+                console.log(event);
+            },
+            onError: function(event)
+            {
+                console.log("ERROR");
+                console.log(event);
             }
         });
 
