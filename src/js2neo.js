@@ -299,13 +299,14 @@
             auth = {
                 scheme: "basic",
                 principal: pub.user,
-                credentials: args.password || "password"
+                credentials: args.password
             },
             chunkHeader = new Uint8Array(2),
             pvt = {},
             requests = [],
             handlers = [],
-            onConnect = args.onConnect || NOOP;
+            onConnect = args.onConnect || NOOP,
+            onError = args.onError || NOOP;
 
         function open() {
             pvt.inData = "";
@@ -315,7 +316,7 @@
             pvt.socket = new WebSocket((pub.secure ? "wss" : "ws") + "://" + pub.host + ":" + pub.port);
             pvt.socket.binaryType = "arraybuffer";
             pvt.socket.onmessage = onHandshake;
-            pvt.socket.onerror = args.onError || NOOP;
+            pvt.socket.onerror = onError;
             pvt.socket.onclose = args.onClose || NOOP;
 
             // Connection opened
@@ -325,8 +326,8 @@
             };
 
             requests.push([0x01, [pub.userAgent, auth], {
-                0x70: function () { pvt.ready = true; },
-                0x7F: reopen
+                0x70: function () { onConnect(pub); pvt.ready = true; },
+                0x7F: shutdown
             }]);
         }
 
@@ -334,10 +335,16 @@
             pvt.socket.send(data);
         }
 
-        function reopen(failure)
+        function shutdown(failure)
         {
-            pvt.socket.close(1002, failure.code + ": " + failure.message);
-            open();
+            try {
+                pvt.socket.close(1002, failure.code + ": " + failure.message);
+            }
+            catch(error)
+            {
+                //
+            }
+            onError(failure.code + ": " + failure.message);
         }
 
         function sendRequests() {
@@ -367,7 +374,6 @@
         {
             var view = new DataView(event.data);
             pub.protocolVersion = view.getInt32(0, false);
-            onConnect(pub);
             pvt.socket.onmessage = onData;
             sendRequests();
         }
@@ -379,7 +385,7 @@
 
             // Automatically send ACK_FAILURE as required
             if (message[0] === 0x7F)
-                requests.push([0x0E, [], {0x7F: reopen}]);
+                requests.push([0x0E, [], {0x7F: shutdown}]);
 
             if (handler)
                 (handler[message[0]] || NOOP)(message[1]);

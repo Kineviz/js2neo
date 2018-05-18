@@ -27,17 +27,48 @@
 
         <p>
             Js2neo is a tiny Neo4j connector for JavaScript.
-            It contains the bare minimum required to run Cypher queries with full data type support.
+            It contains the bare minimum required to run Cypher queries but with full data type support.
         </p>
 
+        <h2>Connection Management</h2>
         <form>
 
-            <div class="query">
-                <textarea id="cypher" style="width:100%" rows="3" title="Cypher query">MATCH (a:Person)-[:ACTED_IN]->(m) WHERE a.name =~ 'K.*'
+          <div class="form-group row">
+            <div class="col">
+              <label for="host">Host</label>
+                <input class="form-control" id="host" placeholder="Enter the server host name or IP address" value="localhost">
+            </div>
+            <div class="col">
+              <label for="port">Port</label>
+                <input type="number" class="form-control" id="port" placeholder="Enter the server port number" value="7687">
+            </div>
+          </div>
+          <div class="form-group row">
+            <div class="col">
+              <label for="host">User</label>
+                <input class="form-control" id="user" placeholder="Enter your user name" value="neo4j">
+            </div>
+            <div class="col">
+              <label for="password">Password</label>
+                <input type="password" class="form-control" id="password" placeholder="Enter your Password">
+            </div>
+          </div>
+            <div class="form-group">
+              <button type="button" class="btn btn-primary" onclick="connect()">Connect</button>
+            </div>
+            <div class="form-group" id="connection-management-status">
+            </div>
+        </form>
+
+        <h2>Query Execution</h2>
+        <form>
+            <div class="form-group">
+                <label for="cypher">Query</label>
+                <textarea class="form-control" id="cypher" style="width:100%" rows="3" title="Cypher query">MATCH (a:Person)-[:ACTED_IN]->(m) WHERE a.name =~ 'K.*'
 RETURN a.name, a.born, collect(m.title)</textarea>
             </div>
-            <div class="toolbar" style="text-align:right">
-                <input type="button" value="Run" onclick='run($("#cypher").val())'/>
+            <div class="form-group">
+                  <button id="run-button" type="button" class="btn btn-primary" onclick='run($("#cypher").val())' disabled="disabled">Run</button>
             </div>
             <table id="result" class="table table-hover">
                 <thead id="result-head" class="thead-dark"></thead>
@@ -47,23 +78,49 @@ RETURN a.name, a.born, collect(m.title)</textarea>
 
         </form>
 
+        <footer>
+            Copyright &copy; 2011-2018 Nigel Small
+        </footer>
+
     </div>
 
     <script>
 
-        var connection = {},
-            bolt = js2neo.bolt({
+        var pub = {};
+
+        function setConnectionManagementStatus(success, message) {
+            var status = document.getElementById("connection-management-status"),
+                div = document.createElement("div"),
+                text = document.createTextNode(message);
+            div.setAttribute("class", "alert alert-" + (success ? "success" : "danger"));
+            div.setAttribute("role", "alert");
+            while (status.firstChild) status.removeChild(status.firstChild);
+            status.appendChild(div);
+            div.appendChild(text);
+            if (success)
+                $("#run-button").removeAttr("disabled");
+            else
+                $("#run-button").attr("disabled", "disabled");
+        }
+
+        function connect() {
+            pub.bolt = js2neo.bolt({
+                host: document.getElementById("host").value,
+                port: parseInt(document.getElementById("port").value),
+                user: document.getElementById("user").value,
+                password: document.getElementById("password").value,
                 onConnect: function(metadata) {
                     for (var key in metadata) {
-                        if (metadata.hasOwnProperty(key)) connection[key] = metadata[key];
+                        if (metadata.hasOwnProperty(key)) pub[key] = metadata[key];
                     }
+                    setConnectionManagementStatus(true, "Successfully connected to " + pub.host + " on port " + pub.port + " as user " + pub.user);
                 },
                 onError: function(event)
                 {
-                    console.log("ERROR");
-                    console.log(event);
+                    setConnectionManagementStatus(false, event);
                 }
             });
+        }
 
         function run(cypher) {
             // Clear any existing result
@@ -78,7 +135,7 @@ RETURN a.name, a.born, collect(m.title)</textarea>
                 count = 0,
                 t0 = new Date();
 
-            bolt.run({
+            pub.bolt.run({
                 cypher: cypher,
                 onHeader: function (metadata) {
                     var tr = document.createElement("tr");
@@ -118,7 +175,7 @@ RETURN a.name, a.born, collect(m.title)</textarea>
                     var tr = document.createElement("tr");
                     var th = document.createElement("th");
                     th.setAttribute("colspan", "" + fields.length);
-                    var server = connection.user + "@" + connection.host + ":" + connection.port;
+                    var server = pub.user + "@" + pub.host + ":" + pub.port;
                     th.appendChild(document.createTextNode(
                         count + " record" + (count === 1 ? "" : "s") +
                         " received from " + server + " in " + time + "ms"));
