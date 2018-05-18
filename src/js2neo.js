@@ -1,11 +1,25 @@
 (function () {
 
-    var version = "1.0.0-alpha.0";
+    var version = "1.0.0-alpha.0",
+        types = {
+            0x4E: function Node(struct) {
+                this.id = struct[1];
+                this.labels = struct[2];
+                this.properties = struct[3];
+            },
+            0x52: function Relationship(struct) {
+                this.id = struct[1];
+                this.start = struct[2];
+                this.end = struct[3];
+                this.type = struct[4];
+                this.properties = struct[5];
+            }
+        };
 
     function NOOP() {}
 
-    function pack(value) {
-        var d = "";
+    function pack(tag, fields) {
+        var d = String.fromCharCode(0xB0 + fields.length, tag);
 
         function pack1(x) {
             var i,  // loop counter
@@ -26,12 +40,6 @@
                 }
                 // TODO
             }
-            else if (x instanceof $) {
-                d += String.fromCharCode(0xB0 + x.fields.length, x.tag);
-                for (i = 0; i < x.fields.length; i++) {
-                    pack1(x.fields[i]);
-                }
-            }
             else {
                 var keys = Object.getOwnPropertyNames(x);
                 d += String.fromCharCode(0xA0 + keys.length);
@@ -42,7 +50,9 @@
             }
         }
 
-        pack1(value);
+        for (var i = 0; i < fields.length; i++)
+            pack1(fields[i]);
+
         return d;
     }
 
@@ -53,7 +63,8 @@
      * @returns {Array}
      */
     function unpack(view) {
-        var p = 0;
+        var p = 0,
+            size = view.getUint8(p++) - 0xB0;
 
         function using(size)
         {
@@ -87,11 +98,17 @@
 
         function unpackStructure(size)
         {
-            var tag = view.getUint8(p++),
-                fields = [];
+            var fields = [view.getUint8(p++)];
             for (var i = 0; i < size; i++)
                 fields.push(unpack1());
-            return new $(tag, fields);
+            return fields;
+        }
+
+        function hydrateStructure(size) {
+            var struct = unpackStructure(size),
+                tag = struct[0];
+            if (tag === 0x44) return new Date(struct[1] * 86400000);
+            return new (types[tag] || Object)(struct);
         }
 
         function unpack1() {
@@ -105,7 +122,7 @@
             else if (m < 0xB0)
                 return unpackMap(m - 0xA0);
             else if (m < 0xC0)
-                return unpackStructure(m - 0xB0);
+                return hydrateStructure(m - 0xB0);
             else if (m < 0xC1)
                 return null;
             else if (m < 0xC2)
@@ -154,13 +171,7 @@
                 return m - 0x100;
         }
 
-        return unpack1();
-    }
-
-    function $(tag, fields)
-    {
-        this.tag = tag;
-        this.fields = fields || [];
+        return unpackStructure(size);
     }
 
     function encode(text)
@@ -210,13 +221,10 @@
                 send(new Uint8Array([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
             };
 
-            requests.push([
-                new $(0x01, [pub.userAgent, auth]),
-                {
-                    0x70: function () { pvt.ready = true; },
-                    0x7F: reopen
-                }
-            ]);
+            requests.push([0x01, [pub.userAgent, auth], {
+                0x70: function () { pvt.ready = true; },
+                0x7F: reopen
+            }]);
         }
 
         function send(data) {
@@ -239,8 +247,8 @@
 
             while (requests.length > 0) {
                 var request = requests.shift(),
-                    data = pack(request[0]);
-                handlers.push(request[1]);
+                    data = pack(request[0], request[1]);
+                handlers.push(request[2]);
                 while (data.length > 0x7FFF) {
                     sendChunkHeader(0x7F, 0xFF);
                     send(encode(data.substr(0, 0x7FFF)));
@@ -264,14 +272,14 @@
         function onMessage(data)
         {
             var message = unpack(new DataView(data)),
-                handler = (message.tag === 0x71) ? handlers[0] : handlers.shift();
+                handler = (message[0] === 0x71) ? handlers[0] : handlers.shift();
 
             // Automatically send ACK_FAILURE as required
-            if (message.tag === 0x7F)
-                requests.push([new $(0x0E), {0x7F: reopen}]);
+            if (message[0] === 0x7F)
+                requests.push([0x0E, [], {0x7F: reopen}]);
 
             if (handler)
-                (handler[message.tag] || NOOP)(message.fields[0]);
+                (handler[message[0]] || NOOP)(message[1]);
         }
 
         function onData(event)
@@ -307,11 +315,11 @@
 
             var cypher = workload.cypher;
             if (cypher.length > 0) {
-                requests.push([new $(0x10, [cypher, workload.parameters || {}]), {
+                requests.push([0x10, [cypher, workload.parameters || {}], {
                     0x70: workload.onHeader || NOOP,
                     0x7F: workload.onFailure || NOOP
                 }]);
-                requests.push([new $(0x3F), {
+                requests.push([0x3F, [], {
                     0x70: workload.onFooter || NOOP,
                     0x71: workload.onRecord || NOOP,
                     0x7F: workload.onFailure || NOOP
@@ -331,5 +339,14 @@
         version: version
 
     };
+
+    for (var key in types)
+    {
+        if (types.hasOwnProperty(key))
+        {
+            var f = types[key];
+            window.js2neo[f.name] = f;
+        }
+    }
 
 })();

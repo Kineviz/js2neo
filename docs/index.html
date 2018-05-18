@@ -14,7 +14,7 @@
     <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js" integrity="sha384-smHYKdLADwkXOn1EmN1qk/HfnUcbVRZyYmZ4qpPea6sjB/pTJ0euyQp0Mk8ck+5T" crossorigin="anonymous"></script>
-    <script src="dist/js2neo.min.js"></script>
+    <script src="dist/js2neo.js"></script>
     <style>
         textarea, table { font-family: monospace }
     </style>
@@ -53,17 +53,17 @@ RETURN a.name, a.born, collect(m.title)</textarea>
 
         var connection = {},
             bolt = js2neo.bolt({
-            onConnect: function(metadata) {
-                for (var key in metadata) {
-                    if (metadata.hasOwnProperty(key)) connection[key] = metadata[key];
+                onConnect: function(metadata) {
+                    for (var key in metadata) {
+                        if (metadata.hasOwnProperty(key)) connection[key] = metadata[key];
+                    }
+                },
+                onError: function(event)
+                {
+                    console.log("ERROR");
+                    console.log(event);
                 }
-            },
-            onError: function(event)
-            {
-                console.log("ERROR");
-                console.log(event);
-            }
-        });
+            });
 
         function run(cypher) {
             // Clear any existing result
@@ -95,8 +95,20 @@ RETURN a.name, a.born, collect(m.title)</textarea>
                     var tr = document.createElement("tr");
                     for (var i = 0; i < fields.length; i++) {
                         var td = document.createElement("td");
-                        var value = fields[i];
-                        td.appendChild(document.createTextNode(typeof value === "string" ? value : JSON.stringify(value)));
+                        var div = document.createElement("div");
+                        var value = fields[i], text;
+                        if (typeof value === "string") {
+                            text = value;
+                        }
+                        else if (typeof value === "object" && !Array.isArray(value)) {
+                            div.setAttribute("style", "white-space: pre");
+                            text = value.constructor.name + "(" + JSON.stringify(value, null, "  ") + ")";
+                        }
+                        else {
+                            text = JSON.stringify(value);
+                        }
+                        div.appendChild(document.createTextNode(text));
+                        td.appendChild(div);
                         tr.appendChild(td);
                     }
                     body.appendChild(tr)
