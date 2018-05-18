@@ -2,47 +2,45 @@
 
     function NOOP() {}
 
-    function pack(values) {
+    function pack(value) {
         var d = "";
 
-        function pack1(value) {
+        function pack1(x) {
             var i,  // loop counter
                 z;  // size
-            if (value === null) {
+            if (x === null) {
                 d += "\xC0";
             }
-            else if (typeof value === "string") {
-                z = value.length;
+            else if (typeof x === "string") {
+                z = x.length;
                 if (z < 0x10) {
-                    d += String.fromCharCode(0x80 + z) + value;
+                    d += String.fromCharCode(0x80 + z) + x;
                 }
                 else if (z < 0x100) {
-                    d += "\xD0" + String.fromCharCode(z) + value;
+                    d += "\xD0" + String.fromCharCode(z) + x;
                 }
                 else if (z < 0x10000) {
-                    d += "\xD1" + String.fromCharCode(z >> 8) + String.fromCharCode(z & 255) + value;
+                    d += "\xD1" + String.fromCharCode(z >> 8) + String.fromCharCode(z & 255) + x;
                 }
                 // TODO
             }
-            else if (value instanceof $) {
-                d += String.fromCharCode(0xB0 + value.fields.length, value.tag);
-                for (i = 0; i < value.fields.length; i++) {
-                    pack1(value.fields[i]);
+            else if (x instanceof $) {
+                d += String.fromCharCode(0xB0 + x.fields.length, x.tag);
+                for (i = 0; i < x.fields.length; i++) {
+                    pack1(x.fields[i]);
                 }
             }
             else {
-                var keys = Object.getOwnPropertyNames(value);
+                var keys = Object.getOwnPropertyNames(x);
                 d += String.fromCharCode(0xA0 + keys.length);
                 for (i = 0; i < keys.length; i++) {
                     pack1(keys[i]);
-                    pack1(value[keys[i]]);
+                    pack1(x[keys[i]]);
                 }
             }
         }
 
-        for (var i = 0; i < values.length; i++) {
-            pack1(values[i]);
-        }
+        pack1(value);
         return d;
     }
 
@@ -250,12 +248,12 @@
 
             while (requests.length > 0) {
                 var request = requests.shift(),
-                    data = pack([request.message]);
+                    data = pack(request.message);
                 handlers.push(request.handler);
-                while (data.length > 32767) {
+                while (data.length > 0x7FFF) {
                     sendChunkHeader(0x7F, 0xFF);
-                    send(encode(data.substr(0, 32767)));
-                    data = data.substr(32767);
+                    send(encode(data.substr(0, 0x7FFF)));
+                    data = data.substr(0x7FFF);
                 }
                 sendChunkHeader(data.length >> 8, data.length & 0xFF);
                 send(encode(data));
@@ -284,13 +282,14 @@
 
         function onChunk(data)
         {
+            var chunks = pvt.inChunks;
             if (data === "")
             {
-                onMessage(encode(pvt.inChunks.join()));
+                onMessage(encode(chunks.join()));
                 pvt.inChunks = [];
             }
             else {
-                pvt.inChunks.push(data);
+                chunks.push(data);
             }
         }
 
