@@ -1,25 +1,126 @@
 (function () {
 
-    var version = "1.0.0-alpha.0",
-        types = {
-            0x4E: function Node(struct) {
-                this.id = struct[1];
-                this.labels = struct[2];
-                this.properties = struct[3];
-            },
-            0x52: function Relationship(struct) {
-                this.id = struct[1];
-                this.start = struct[2];
-                this.end = struct[3];
-                this.type = struct[4];
-                this.properties = struct[5];
+    var DAYS = "days",
+        ID = "id",
+        NANOSECONDS ="nanoseconds",
+        PROPERTIES = "properties",
+        SECONDS = "seconds",
+        TZ = "tz",
+
+        str = String.fromCharCode;
+
+    DataView.prototype.getInt64 = function(offset, littleEndian) {
+        var hi = this.getUint32(offset, littleEndian),
+            lo = this.getUint32(offset + 4, littleEndian);
+        hi = hi.toString(16);
+        while (hi.length < 8)
+            hi = "0" + hi;
+        lo = lo.toString(16);
+        while (lo.length < 8)
+            lo = "0" + lo;
+        return parseInt("0x" + hi + lo, 16);
+    };
+
+    window.js2neo = {
+
+        bolt: function(args) { return new Bolt(args); },
+
+        Node: function(struct) {
+            unwind.call(this, struct, ID, "labels", PROPERTIES);
+        },
+
+        Relationship: function(struct) {
+            unwind.call(this, struct, ID, "start", "end", "type", PROPERTIES);
+        },
+
+        Path: function(struct) {
+            var nodes = struct[0],
+                relationships = struct[1],
+                sequence = struct[2],
+                lastNode = nodes[0],
+                nextNode,
+                entities = [lastNode],
+                i,
+                relationshipIndex,
+                r;
+            for(i = 0; i < sequence.length; i += 2)
+            {
+                relationshipIndex = sequence[i];
+                nextNode = nodes[sequence[2 * i + 1]];
+                if (relationshipIndex > 0) {
+                    r = relationships[relationshipIndex - 1];
+                    entities.push(new js2neo.Relationship([r.id, lastNode.id, nextNode.id, r.type, r.properties]));
+                } else {
+                    r = relationships[relationships.length + relationshipIndex];
+                    entities.push(new js2neo.Relationship([r.id, nextNode.id, lastNode.id, r.type, r.properties]));
+                }
+                entities.push(nextNode);
+                lastNode = nextNode
             }
-        };
+            this.entities = entities;
+        },
+
+        Point: function(struct) {
+            unwind.call(this, struct, "srid", "x", "y");
+        },
+
+        Date: function(struct) {
+            unwind.call(this, struct, DAYS);
+        },
+
+        Time: function(struct) {
+            this.seconds = struct[0] / 1000000000;
+            this.tz = struct[1];
+        },
+
+        LocalTime: function(struct) {
+            this.seconds = struct[0] / 1000000000;
+        },
+
+        DateTime: function(struct) {
+            unwind.call(this, struct, SECONDS, NANOSECONDS, TZ);
+        },
+
+        LocalDateTime: function(struct) {
+            unwind.call(this, struct, SECONDS, NANOSECONDS);
+        },
+
+        Duration: function(struct) {
+            unwind.call(this, struct, "months", DAYS, SECONDS, NANOSECONDS);
+        },
+
+        version: "1.0.0-alpha.0"
+
+    };
+
+    function unwind(struct) {
+        for (var i = 0; i < struct.length; i++)
+            this[arguments[i + 1]] = struct[i];
+    }
+
+    function UnboundRelationship(struct) {
+        unwind.call(this, struct, ID, "type", PROPERTIES);
+    }
+
+    var types = {
+        0x44: js2neo.Date,
+        0x45: js2neo.Duration,
+        0x46: js2neo.DateTime,
+        0x4E: js2neo.Node,
+        0x50: js2neo.Path,
+        0x52: js2neo.Relationship,
+        0x54: js2neo.Time,
+        0x58: js2neo.Point,
+        0x64: js2neo.LocalDateTime,
+        0x66: js2neo.DateTime,
+        0x72: UnboundRelationship,
+        0x74: js2neo.LocalTime
+    };
 
     function NOOP() {}
 
     function pack(tag, fields) {
-        var d = String.fromCharCode(0xB0 + fields.length, tag);
+        var d = str(0xB0 + fields.length, tag);
 
         function pack1(x) {
             var i,  // loop counter
@@ -27,25 +128,27 @@
             if (x === null) {
                 d += "\xC0";
             }
-            else if (typeof x === "string") {
-                z = x.length;
-                if (z < 0x10) {
-                    d += String.fromCharCode(0x80 + z) + x;
-                }
-                else if (z < 0x100) {
-                    d += "\xD0" + String.fromCharCode(z) + x;
-                }
-                else if (z < 0x10000) {
-                    d += "\xD1" + String.fromCharCode(z >> 8) + String.fromCharCode(z & 255) + x;
-                }
-                // TODO
-            }
             else {
-                var keys = Object.getOwnPropertyNames(x);
-                d += String.fromCharCode(0xA0 + keys.length);
-                for (i = 0; i < keys.length; i++) {
-                    pack1(keys[i]);
-                    pack1(x[keys[i]]);
+                if (typeof x === "string") {
+                    z = x.length;
+                    if (z < 0x10) {
+                        d += str(0x80 + z) + x;
+                    }
+                    else if (z < 0x100) {
+                        d += "\xD0" + str(z) + x;
+                    }
+                    else if (z < 0x10000) {
+                        d += "\xD1" + str(z >> 8) + str(z & 255) + x;
+                    }
+                    // TODO
+                }
+                else {
+                    var keys = Object.getOwnPropertyNames(x);
+                    d += str(0xA0 + keys.length);
+                    for (i = 0; i < keys.length; i++) {
+                        pack1(keys[i]);
+                        pack1(x[keys[i]]);
+                    }
                 }
             }
         }
@@ -74,7 +177,7 @@
         function unpackString(size) {
             var s = "", end = p + size;
             for (; p < end; p++)
-                s += String.fromCharCode(view.getUint8(p));
+                s += str(view.getUint8(p));
             return s;
         }
 
@@ -106,9 +209,9 @@
 
         function hydrateStructure(size) {
             var struct = unpackStructure(size),
-                tag = struct[0];
-            if (tag === 0x44) return new Date(struct[1] * 86400000);
-            return new (types[tag] || Object)(struct);
+                tag = struct[0],
+                type = types[tag];
+            return type ? new type(struct.slice(1)) : struct;
         }
 
         function unpack1() {
@@ -126,7 +229,7 @@
             else if (m < 0xC1)
                 return null;
             else if (m < 0xC2)
-                return view.getFloat64(using(8));
+                return view.getFloat64(using(8), false);
             else if (m < 0xC4)
                 return !!(m & 1);
             else if (m < 0xC8)
@@ -134,11 +237,11 @@
             else if (m < 0xC9)
                 return view.getInt8(using(1));
             else if (m < 0xCA)
-                return view.getInt16(using(2));
+                return view.getInt16(using(2), false);
             else if (m < 0xCB)
-                return view.getInt32(using(4));
+                return view.getInt32(using(4), false);
             else if (m < 0xCC)
-                return [view.getUint32(using(4)), view.getUint32(using(4))];
+                return view.getInt64(using(8), false);
             else if (m < 0xD0)
                 return undefined;
             else if (m < 0xD1)
@@ -191,7 +294,7 @@
                 host: args.host || "localhost",
                 port: args.port || 7687,
                 user: args.user || "neo4j",
-                userAgent: args.userAgent || "js2neo/" + version
+                userAgent: args.userAgent || "js2neo/" + js2neo.version
             },
             auth = {
                 scheme: "basic",
@@ -288,7 +391,7 @@
                 chunkSize,
                 endOfChunk,
                 chunkData,
-                inData = pvt.inData += String.fromCharCode.apply(null, new Uint8Array(event.data)),
+                inData = pvt.inData += str.apply(null, new Uint8Array(event.data)),
                 inChunks = pvt.inChunks;
             while (more) {
                 chunkSize = inData.charCodeAt(0) << 8 | inData.charCodeAt(1);
@@ -330,23 +433,6 @@
 
         open();
 
-    }
-
-    window.js2neo = {
-
-        bolt: function(args) { return new Bolt(args); },
-
-        version: version
-
-    };
-
-    for (var key in types)
-    {
-        if (types.hasOwnProperty(key))
-        {
-            var f = types[key];
-            window.js2neo[f.name] = f;
-        }
     }
 
 })();
