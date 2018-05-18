@@ -157,7 +157,7 @@
     function $(tag, fields)
     {
         this.tag = tag;
-        this.fields = fields;
+        this.fields = fields || [];
     }
 
     function encode(text)
@@ -187,92 +187,123 @@
 
     function Bolt(args) {
         args = args || {};
-        var self = this,
-            scheme = (document.location.protocol === "https:") ? "wss" : "ws",
-            url = scheme + "://" + (args.host || "localhost") + ":" + (args.port || 7687),
-            connection = {
-                url: url,
+        var scheme = (document.location.protocol === "https:") ? "wss" : "ws",
+            pub = {
+                userAgent: "js2neo/1.0.0-alpha.0",
+                url: scheme + "://" + (args.host || "localhost") + ":" + (args.port || 7687),
                 user: args.user || "neo4j"
             },
-            requests = [new Request(
-                new $(0x01, ["js2neo/1.0.0-alpha.0", {
-                    scheme: "basic",
-                    principal: connection.user,
-                    credentials: args.password || "password"
-                }]),
-                {
-                    0x70: console.log,
-                    0x7F: console.log
-                }
-            )],
+            auth = {
+                scheme: "basic",
+                principal: pub.user,
+                credentials: args.password || "password"
+            },
+            chunkHeader = new Uint8Array(2),
+            pvt = {},
+            requests = [],
             handlers = [],
-            timers = [],
             onConnect = args.onConnect || NOOP;
-        self.rawInputBuffer = "";
-        self.chunkInputBuffer = [];
-        self.socket = new WebSocket(url);
-        self.socket.binaryType = "arraybuffer";
-        self.ready = false;
 
-        function send()
-        {
-            while(requests.length > 0)
-            {
-                var request = requests.shift();
-                handlers.push(request.handler);
-                // console.log("C: " + request.message);
-                var data = pack([request.message]);
-                while(data.length > 32767)
+        function open() {
+            pvt.rawInputBuffer = "";
+            pvt.chunkInputBuffer = [];
+            pvt.ready = false;
+
+            pvt.socket = new WebSocket(pub.url);
+            pvt.socket.binaryType = "arraybuffer";
+            pvt.socket.onmessage = onHandshake;
+            pvt.socket.onerror = console.log;
+            pvt.socket.onclose = console.log;
+
+            // Connection opened
+            pvt.socket.onopen = function () {
+                // Handshake
+                pvt.socket.send(new Uint8Array([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
+            };
+
+            requests.push(new Request(
+                new $(0x01, [pub.userAgent, auth]),
                 {
-                    self.socket.send(new Uint8Array([0x7F, 0xFF]));
-                    self.socket.send(encode(data.substr(0, 32767)));
+                    0x70: function () { pvt.ready = true; },
+                    0x7F: reopen
+                }
+            ));
+        }
+
+        function reopen(failure)
+        {
+            pvt.socket.close(1002, failure.code + ": " + failure.message);
+            open();
+        }
+
+        function sendRequests() {
+
+            function send(data) {
+                pvt.socket.send(data);
+            }
+
+            function sendHeader(hi, lo) {
+                chunkHeader[0] = hi;
+                chunkHeader[1] = lo;
+                send(chunkHeader);
+            }
+
+            while (requests.length > 0) {
+                var request = requests.shift(),
+                    data = pack([request.message]);
+                handlers.push(request.handler);
+                while (data.length > 32767) {
+                    sendHeader(0x7F, 0xFF);
+                    send(encode(data.substr(0, 32767)));
                     data = data.substr(32767);
                 }
-                self.socket.send(new Uint8Array([data.length >> 8, data.length & 0xFF]));
-                self.socket.send(encode(data));
-                self.socket.send(new Uint8Array([0x00, 0x00]));
+                sendHeader(data.length >> 8, data.length & 0xFF);
+                send(encode(data));
+                sendHeader(0x00, 0x00);
             }
         }
 
         function onHandshake(event)
         {
             var view = new DataView(event.data);
-            connection.protocolVersion = view.getInt32(0, false);
-            onConnect(connection);
-            self.socket.onmessage = onChunkedData;
-            send();
-            self.ready = true;
+            pub.protocolVersion = view.getInt32(0, false);
+            onConnect(pub);
+            pvt.socket.onmessage = onChunkedData;
+            sendRequests();
         }
 
         function onMessage(data)
         {
-            var h, message = unpack(new DataView(data))[0],
+            var message = unpack(new DataView(data))[0],
                 handler = (message.tag === 0x71) ? handlers[0] : handlers.shift();
-            if (handler && (h = handler[message.tag])) h(message.fields[0]);
+            if (message.tag === 0x7F)
+                requests.push(new Request(new $(0x0E), {0x7F: reopen}));
+            if (handler)
+                (handler[message.tag] || NOOP)(message.fields[0]);
         }
 
         function onChunk(data)
         {
             if (data === "")
             {
-                onMessage(encode(self.chunkInputBuffer.join()));
-                self.chunkInputBuffer = [];
+                onMessage(encode(pvt.chunkInputBuffer.join()));
+                pvt.chunkInputBuffer = [];
             }
             else {
-                self.chunkInputBuffer.push(data);
+                pvt.chunkInputBuffer.push(data);
             }
         }
 
         function onChunkedData(event)
         {
-            self.rawInputBuffer += decode(event.data);
+            pvt.rawInputBuffer += decode(event.data);
             var more = true;
             while (more) {
-                var chunkSize = 0x100 * self.rawInputBuffer.charCodeAt(0) + self.rawInputBuffer.charCodeAt(1);
+                var chunkSize = 0x100 * pvt.rawInputBuffer.charCodeAt(0) + pvt.rawInputBuffer.charCodeAt(1);
                 var end = 2 + chunkSize;
-                if (self.rawInputBuffer.length >= end) {
-                    onChunk(self.rawInputBuffer.slice(2, end));
-                    self.rawInputBuffer = self.rawInputBuffer.substr(end);
+                if (pvt.rawInputBuffer.length >= end) {
+                    onChunk(pvt.rawInputBuffer.slice(2, end));
+                    pvt.rawInputBuffer = pvt.rawInputBuffer.substr(end);
                 }
                 else
                 {
@@ -281,53 +312,31 @@
             }
         }
 
-        self.socket.onmessage = onHandshake;
-        self.socket.onerror = console.log;
-        self.socket.onclose = console.log;
+        this.run = function(workload) {
 
-        // Connection opened
-        self.socket.onopen = function () {
-            // Handshake
-            self.socket.send(new Uint8Array([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
-        };
-        self.protocolVersion = null;
-
-        function onFailure(metadata)
-        {
-            console.log(JSON.stringify(metadata));
-            var ack = new Request(
-                new $(0x0E, []),
-                {
-                    0x70: console.log,
-                    0x7F: console.log
-                }
-            );
-            requests.push(ack);
-        }
-
-        self.run = function(workload) {
-            timers.push(new Date());
             var cypher = workload.cypher;
             if (cypher.length > 0) {
                 requests.push(new Request(
                     new $(0x10, [cypher, workload.parameters || {}]),
                     {
-                        0x70: workload.onHeader || console.log,
-                        0x7F: onFailure
+                        0x70: workload.onHeader || NOOP,
+                        0x7F: workload.onFailure || NOOP
                     }
                 ));
                 requests.push(new Request(
-                    new $(0x3F, []),
+                    new $(0x3F),
                     {
-                        0x70: function(metadata) { metadata.time = (new Date() - timers.shift()) + "ms"; (workload.onFooter || console.log)(metadata); },
-                        0x71: workload.onRecord || console.log,
-                        0x7F: onFailure
+                        0x70: workload.onFooter || NOOP,
+                        0x71: workload.onRecord || NOOP,
+                        0x7F: workload.onFailure || NOOP
                     }
                 ));
             }
-            if (self.ready) send();
-        }
-;
+            if (pvt.ready) sendRequests();
+        };
+
+        open();
+
     }
 
     window.js2neo = {

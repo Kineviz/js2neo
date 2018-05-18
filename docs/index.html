@@ -59,13 +59,18 @@ RETURN a.name, a.born, collect(m.title)</textarea>
         });
 
         function run(cypher) {
+            // Clear any existing result
             var head = document.getElementById("result-head"),
                 body = document.getElementById("result-body"),
-                foot = document.getElementById("result-foot"),
-                fields = [];
+                foot = document.getElementById("result-foot");
             while (head.firstChild) head.removeChild(head.firstChild);
             while (body.firstChild) body.removeChild(body.firstChild);
             while (foot.firstChild) foot.removeChild(foot.firstChild);
+
+            var fields = [],
+                count = 0,
+                t0 = new Date();
+
             bolt.run({
                 cypher: cypher,
                 onHeader: function (metadata) {
@@ -79,6 +84,7 @@ RETURN a.name, a.born, collect(m.title)</textarea>
                     head.appendChild(tr)
                 },
                 onRecord: function (fields) {
+                    count += 1;
                     var tr = document.createElement("tr");
                     for (var i = 0; i < fields.length; i++) {
                         var td = document.createElement("td");
@@ -88,10 +94,11 @@ RETURN a.name, a.born, collect(m.title)</textarea>
                     body.appendChild(tr)
                 },
                 onFooter: function (metadata) {
+                    var time = new Date() - t0;
                     var tr = document.createElement("tr");
                     var th = document.createElement("th");
                     th.setAttribute("colspan", "" + fields.length);
-                    th.appendChild(document.createTextNode(JSON.stringify(metadata)));
+                    th.appendChild(document.createTextNode(count + " records received from S in " + time + "ms"));
                     tr.appendChild(th);
                     foot.appendChild(tr)
                 }
