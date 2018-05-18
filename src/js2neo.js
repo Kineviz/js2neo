@@ -1,5 +1,7 @@
 (function () {
 
+    var version = "1.0.0-alpha.0";
+
     function NOOP() {}
 
     function pack(value) {
@@ -44,9 +46,14 @@
         return d;
     }
 
+    /**
+     * Unpack the first value from a DataView (there should be only one -- #Highlander).
+     *
+     * @param view
+     * @returns {Array}
+     */
     function unpack(view) {
-        var values = [],
-            p = 0;
+        var p = 0;
 
         function using(size)
         {
@@ -147,9 +154,7 @@
                 return m - 0x100;
         }
 
-        while (p < view.byteLength)
-            values.push(unpack1());
-        return values;
+        return unpack1();
     }
 
     function $(tag, fields)
@@ -168,28 +173,14 @@
         return data.buffer;
     }
 
-    function decode(data) {
-        var view = new DataView(data);
-        var text = "";
-        for (var i = 0; i < view.byteLength; i++) {
-            text += String.fromCharCode(view.getUint8(i));
-        }
-        return text;
-    }
-
-    function Request(message, handler)
-    {
-        this.message = message;
-        this.handler = handler;
-    }
-
     function Bolt(args) {
         args = args || {};
-        var scheme = (document.location.protocol === "https:") ? "wss" : "ws",
-            pub = {
-                userAgent: "js2neo/1.0.0-alpha.0",
-                url: scheme + "://" + (args.host || "localhost") + ":" + (args.port || 7687),
-                user: args.user || "neo4j"
+        var pub = {
+                secure: document.location.protocol === "https:",
+                host: args.host || "localhost",
+                port: args.port || 7687,
+                user: args.user || "neo4j",
+                userAgent: args.userAgent || "js2neo/" + version
             },
             auth = {
                 scheme: "basic",
@@ -207,7 +198,7 @@
             pvt.inChunks = [];
             pvt.ready = false;
 
-            pvt.socket = new WebSocket(pub.url);
+            pvt.socket = new WebSocket((pub.secure ? "wss" : "ws") + "://" + pub.host + ":" + pub.port);
             pvt.socket.binaryType = "arraybuffer";
             pvt.socket.onmessage = onHandshake;
             pvt.socket.onerror = args.onError || NOOP;
@@ -219,13 +210,13 @@
                 send(new Uint8Array([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
             };
 
-            requests.push(new Request(
+            requests.push([
                 new $(0x01, [pub.userAgent, auth]),
                 {
                     0x70: function () { pvt.ready = true; },
                     0x7F: reopen
                 }
-            ));
+            ]);
         }
 
         function send(data) {
@@ -248,8 +239,8 @@
 
             while (requests.length > 0) {
                 var request = requests.shift(),
-                    data = pack(request.message);
-                handlers.push(request.handler);
+                    data = pack(request[0]);
+                handlers.push(request[1]);
                 while (data.length > 0x7FFF) {
                     sendChunkHeader(0x7F, 0xFF);
                     send(encode(data.substr(0, 0x7FFF)));
@@ -266,43 +257,44 @@
             var view = new DataView(event.data);
             pub.protocolVersion = view.getInt32(0, false);
             onConnect(pub);
-            pvt.socket.onmessage = onChunkedData;
+            pvt.socket.onmessage = onData;
             sendRequests();
         }
 
         function onMessage(data)
         {
-            var message = unpack(new DataView(data))[0],
+            var message = unpack(new DataView(data)),
                 handler = (message.tag === 0x71) ? handlers[0] : handlers.shift();
+
+            // Automatically send ACK_FAILURE as required
             if (message.tag === 0x7F)
-                requests.push(new Request(new $(0x0E), {0x7F: reopen}));
+                requests.push([new $(0x0E), {0x7F: reopen}]);
+
             if (handler)
                 (handler[message.tag] || NOOP)(message.fields[0]);
         }
 
-        function onChunk(data)
+        function onData(event)
         {
-            var chunks = pvt.inChunks;
-            if (data === "")
-            {
-                onMessage(encode(chunks.join()));
-                pvt.inChunks = [];
-            }
-            else {
-                chunks.push(data);
-            }
-        }
-
-        function onChunkedData(event)
-        {
-            pvt.inData += decode(event.data);
-            var more = true;
+            var more = true,
+                chunkSize,
+                endOfChunk,
+                chunkData,
+                inData = pvt.inData += String.fromCharCode.apply(null, new Uint8Array(event.data)),
+                inChunks = pvt.inChunks;
             while (more) {
-                var chunkSize = 0x100 * pvt.inData.charCodeAt(0) + pvt.inData.charCodeAt(1);
-                var end = 2 + chunkSize;
-                if (pvt.inData.length >= end) {
-                    onChunk(pvt.inData.slice(2, end));
-                    pvt.inData = pvt.inData.substr(end);
+                chunkSize = inData.charCodeAt(0) << 8 | inData.charCodeAt(1);
+                endOfChunk = 2 + chunkSize;
+                if (inData.length >= endOfChunk) {
+                    chunkData = inData.slice(2, endOfChunk);
+                    if (chunkData === "") {
+                        onMessage(encode(inChunks.join()));
+                        inChunks = pvt.inChunks = [];
+                    }
+                    else {
+                        inChunks.push(chunkData);
+                    }
+                    inData = pvt.inData = pvt.inData.substr(endOfChunk);
                 }
                 else
                 {
@@ -315,21 +307,15 @@
 
             var cypher = workload.cypher;
             if (cypher.length > 0) {
-                requests.push(new Request(
-                    new $(0x10, [cypher, workload.parameters || {}]),
-                    {
-                        0x70: workload.onHeader || NOOP,
-                        0x7F: workload.onFailure || NOOP
-                    }
-                ));
-                requests.push(new Request(
-                    new $(0x3F),
-                    {
-                        0x70: workload.onFooter || NOOP,
-                        0x71: workload.onRecord || NOOP,
-                        0x7F: workload.onFailure || NOOP
-                    }
-                ));
+                requests.push([new $(0x10, [cypher, workload.parameters || {}]), {
+                    0x70: workload.onHeader || NOOP,
+                    0x7F: workload.onFailure || NOOP
+                }]);
+                requests.push([new $(0x3F), {
+                    0x70: workload.onFooter || NOOP,
+                    0x71: workload.onRecord || NOOP,
+                    0x7F: workload.onFailure || NOOP
+                }]);
             }
             if (pvt.ready) sendRequests();
         };
@@ -340,7 +326,9 @@
 
     window.js2neo = {
 
-        bolt: function(args) { return new Bolt(args); }
+        bolt: function(args) { return new Bolt(args); },
+
+        version: version
 
     };
 
