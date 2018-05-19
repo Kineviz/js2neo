@@ -304,9 +304,7 @@
             chunkHeader = new Uint8Array(2),
             pvt = {},
             requests = [],
-            handlers = [],
-            onConnect = args.onConnect || NOOP,
-            onError = args.onError || NOOP;
+            handlers = [];
 
         function open() {
             pvt.inData = "";
@@ -316,35 +314,28 @@
             pvt.socket = new WebSocket((pub.secure ? "wss" : "ws") + "://" + pub.host + ":" + pub.port);
             pvt.socket.binaryType = "arraybuffer";
             pvt.socket.onmessage = onHandshake;
-            pvt.socket.onerror = onError;
+            pvt.socket.onerror = args.onError || NOOP;
             pvt.socket.onclose = args.onClose || NOOP;
 
             // Connection opened
             pvt.socket.onopen = function () {
-                // Handshake
+                (args.onOpen || NOOP)(pub);
                 send(new Uint8Array([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
             };
 
             requests.push([0x01, [pub.userAgent, auth], {
-                0x70: function () { onConnect(pub); pvt.ready = true; },
-                0x7F: shutdown
+                0x70: function () {
+                    (args.onInit || NOOP)(pub);
+                    pvt.ready = true;
+                },
+                0x7F: function (failure) {
+                    (args.onInitFailure || NOOP)(failure);
+                }
             }]);
         }
 
         function send(data) {
             pvt.socket.send(data);
-        }
-
-        function shutdown(failure)
-        {
-            try {
-                pvt.socket.close(1002, failure.code + ": " + failure.message);
-            }
-            catch(error)
-            {
-                //
-            }
-            onError(failure.code + ": " + failure.message);
         }
 
         function sendRequests() {
@@ -374,6 +365,7 @@
         {
             var view = new DataView(event.data);
             pub.protocolVersion = view.getInt32(0, false);
+            (args.onHandshake || NOOP)(pub);
             pvt.socket.onmessage = onData;
             sendRequests();
         }
@@ -385,7 +377,11 @@
 
             // Automatically send ACK_FAILURE as required
             if (message[0] === 0x7F)
-                requests.push([0x0E, [], {0x7F: shutdown}]);
+                requests.push([0x0E, [], {
+                    0x7F: function (failure) {
+                        pvt.socket.close(4002, failure.code + ": " + failure.message);
+                    }
+                }]);
 
             if (handler)
                 (handler[message[0]] || NOOP)(message[1]);
@@ -435,6 +431,10 @@
                 }]);
             }
             if (pvt.ready) sendRequests();
+        };
+
+        this.close = function() {
+            pvt.socket.close();
         };
 
         open();

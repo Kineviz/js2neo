@@ -38,96 +38,154 @@
             It contains the bare minimum required to run Cypher queries but with full data type support.
         </p>
 
-        <h2>Connection Management</h2>
-        <form>
-
-          <div class="form-group row">
-            <div class="col">
-              <label for="host">Host</label>
-                <input class="form-control" id="host" placeholder="Enter the server host name or IP address" value="localhost">
+        <form id="connection-form">
+            <h2>Connection</h2>
+            <div class="form-group row">
+                <div class="col">
+                    <label for="host">Host</label>
+                    <input class="form-control" id="host" placeholder="Enter the server host name or IP address"
+                           value="localhost">
+                </div>
+                <div class="col">
+                    <label for="port">Port</label>
+                    <input type="number" class="form-control" id="port" placeholder="Enter the server port number"
+                           value="7687">
+                </div>
             </div>
-            <div class="col">
-              <label for="port">Port</label>
-                <input type="number" class="form-control" id="port" placeholder="Enter the server port number" value="7687">
+            <div class="form-group row">
+                <div class="col">
+                    <label for="host">User</label>
+                    <input class="form-control" id="user" placeholder="Enter your user name" value="neo4j">
+                </div>
+                <div class="col" id="password-here">
+                    <label for="password">Password</label>
+                    <input type="text" class="form-control text-security" id="password">
+                </div>
             </div>
-          </div>
-          <div class="form-group row">
-            <div class="col">
-              <label for="host">User</label>
-                <input class="form-control" id="user" placeholder="Enter your user name" value="neo4j">
-            </div>
-            <div class="col" id="password-here">
-                <label for="password">Password</label>
-                <input type="text" class="form-control text-security" id="password">
-            </div>
-          </div>
             <div class="form-group">
-              <button type="button" class="btn btn-primary" onclick="connect()">Connect</button>
+                <button id="connect-button" type="button" class="btn btn-primary" onclick="connect()">Connect</button>
+                <button id="disconnect-button" type="button" class="btn btn-primary" onclick="disconnect()"
+                        disabled="disabled">Disconnect
+                </button>
             </div>
             <div class="form-group" id="connection-management-status">
             </div>
         </form>
 
-        <h2>Query Execution</h2>
-        <form>
-            <div class="form-group">
-                <label for="cypher">Query</label>
-                <textarea class="form-control" id="cypher" style="width:100%" rows="3" title="Cypher query">MATCH (a:Person)-[:ACTED_IN]->(m) WHERE a.name =~ 'K.*'
+        <form id="query-form">
+            <h2>Cypher</h2>
+            <div class="form-group row">
+                <div class="col-8">
+                    <label for="cypher">Statement</label>
+                    <textarea class="form-control" id="cypher" style="width:100%;height:7.5rem" title="Cypher query">MATCH (a:Person)-[:ACTED_IN]->(m) WHERE a.name =~ 'K.*'
 RETURN a.name, a.born, collect(m.title)</textarea>
+                </div>
+                <div class="col-4">
+                    <label for="parameters">Parameters</label>
+                    <select id="parameters" class="custom-select" size="3" style="height:7.5rem">
+                    </select>
+                </div>
             </div>
             <div class="form-group">
-                  <button id="run-button" type="button" class="btn btn-primary" onclick='run($("#cypher").val())' disabled="disabled">Run</button>
+                <button id="run-button" type="button" class="btn btn-primary" onclick='run($("#cypher").val())'
+                        disabled="disabled">Run
+                </button>
             </div>
+        </form>
+
+        <form id="result-form">
+            <h2>Result</h2>
             <table id="result" class="table table-hover">
                 <thead id="result-head" class="thead-dark"></thead>
                 <tbody id="result-body"></tbody>
                 <tfoot id="result-foot" class="thead-dark"></tfoot>
             </table>
-
         </form>
 
-        <footer>
-            Copyright &copy; 2011-2018 Nigel Small
-        </footer>
+        <div class="py-3 text-center">
+        Copyright &copy; 2011-2018 Nigel Small
+    </div>
 
     </div>
 
     <script>
 
+        $("#result-form").hide();
+
         var pub = {};
 
-        function setConnectionManagementStatus(success, message) {
+        function clearConnectionManagementStatus() {
+            var status = document.getElementById("connection-management-status");
+            while (status.firstChild) status.removeChild(status.firstChild);
+        }
+
+        function addConnectionManagementStatus(level, message) {
             var status = document.getElementById("connection-management-status"),
                 div = document.createElement("div"),
                 text = document.createTextNode(message);
-            div.setAttribute("class", "alert alert-" + (success ? "success" : "danger"));
+            div.setAttribute("class", "alert alert-" + level);
             div.setAttribute("role", "alert");
-            while (status.firstChild) status.removeChild(status.firstChild);
             status.appendChild(div);
             div.appendChild(text);
-            if (success)
+        }
+
+        function setConnected(connected) {
+            if (connected) {
                 $("#run-button").removeAttr("disabled");
-            else
+                $("#connect-button").attr("disabled", "disabled");
+                $("#disconnect-button").removeAttr("disabled");
+            } else {
                 $("#run-button").attr("disabled", "disabled");
+                $("#connect-button").removeAttr("disabled");
+                $("#disconnect-button").attr("disabled", "disabled");
+            }
         }
 
         function connect() {
+            clearConnectionManagementStatus();
             pub.bolt = js2neo.bolt({
                 host: document.getElementById("host").value,
                 port: parseInt(document.getElementById("port").value),
                 user: document.getElementById("user").value,
                 password: document.getElementById("password").value,
-                onConnect: function(metadata) {
+                onOpen: function(metadata) {
+                    // for (var key in metadata) {
+                    //     if (metadata.hasOwnProperty(key)) pub[key] = metadata[key];
+                    // }
+                    // addConnectionManagementStatus("success", "Connected to " + pub.host + " on port " + pub.port);
+                },
+                onHandshake: function(metadata) {
+                    // for (var key in metadata) {
+                    //     if (metadata.hasOwnProperty(key)) pub[key] = metadata[key];
+                    // }
+                    // addConnectionManagementStatus("success", "Using Bolt protocol v" + pub.protocolVersion);
+                },
+                onInit: function(metadata) {
                     for (var key in metadata) {
                         if (metadata.hasOwnProperty(key)) pub[key] = metadata[key];
                     }
-                    setConnectionManagementStatus(true, "Successfully connected to " + pub.host + " on port " + pub.port + " as user " + pub.user);
+                    addConnectionManagementStatus("success", "Connected with Bolt v" + pub.protocolVersion + " to " + pub.host + " on port " + pub.port + " as user " + pub.user);
+                    setConnected(true);
+                },
+                onInitFailure: function(failure) {
+                    addConnectionManagementStatus("danger", failure.code + ": " + failure.message);
+                    setConnected(false);
+                },
+                onClose: function(event) {
+                    //addConnectionManagementStatus("info", "Connection closed");
+                    setConnected(false);
+                    pub.bolt = undefined;
                 },
                 onError: function(event)
                 {
-                    setConnectionManagementStatus(false, event);
+                    addConnectionManagementStatus("danger", event);
                 }
             });
+        }
+
+        function disconnect() {
+            clearConnectionManagementStatus();
+            pub.bolt.close();
         }
 
         function run(cypher) {
@@ -146,6 +204,7 @@ RETURN a.name, a.born, collect(m.title)</textarea>
             pub.bolt.run({
                 cypher: cypher,
                 onHeader: function (metadata) {
+                    $("#result-form").show();
                     var tr = document.createElement("tr");
                     for (var i = 0; i < metadata.fields.length; i++) {
                         fields.push(metadata.fields[i]);
