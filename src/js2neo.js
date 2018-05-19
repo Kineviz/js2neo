@@ -290,7 +290,7 @@
     function Bolt(args) {
         args = args || {};
         var pub = {
-                secure: document.location.protocol === "https:",
+                secure: args.secure || document.location.protocol === "https:",
                 host: args.host || "localhost",
                 port: args.port || 7687,
                 user: args.user || "neo4j",
