@@ -17,6 +17,10 @@
     <script src="dist/js2neo.js"></script>
     <style>
         textarea, table { font-family: monospace }
+        .text-security {
+            -webkit-filter: blur(3px);
+        }
+
     </style>
   </head>
   <body style="overflow-y:scroll">
@@ -49,8 +53,8 @@
                 <input class="form-control" id="user" placeholder="Enter your user name" value="neo4j">
             </div>
             <div class="col" id="password-here">
-                <!--label for="password">Password</label>
-                <input type="password" class="form-control" id="password" placeholder="Enter your Password"-->
+                <label for="password">Password</label>
+                <input type="text" class="form-control text-security" id="password" placeholder="Enter your Password">
             </div>
           </div>
             <div class="form-group">
@@ -85,9 +89,6 @@ RETURN a.name, a.born, collect(m.title)</textarea>
     </div>
 
     <script>
-
-        $("#password-here").append('<label for="password">Password</label>\n<input type="password" class="form-control" id="password" placeholder="Enter your Password">');
-
 
         var pub = {};
 
