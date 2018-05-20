@@ -1,4 +1,8 @@
-(function () {
+/*
+ * Copyright (C) 2011-2018 Nigel Small
+ * Licensed under the Apache License, Version 2.0
+ */
+!function (global) {
 
     var DAYS = "days",
         ID = "id",
@@ -7,21 +11,11 @@
         SECONDS = "seconds",
         TZ = "tz",
 
-        str = String.fromCharCode;
+        str = String.fromCharCode,
+        DV = DataView,
+        U8 = Uint8Array;
 
-    function getInt64(view, offset, littleEndian) {
-        var hi = view.getUint32(offset, littleEndian),
-            lo = view.getUint32(offset + 4, littleEndian);
-        hi = hi.toString(16);
-        while (hi.length < 8)
-            hi = "0" + hi;
-        lo = lo.toString(16);
-        while (lo.length < 8)
-            lo = "0" + lo;
-        return parseInt("0x" + hi + lo, 16);
-    }
-
-    window.js2neo = {
+    global.js2neo = {
 
         bolt: function(args) { return new Bolt(args); },
 
@@ -33,7 +27,7 @@
             unwind.call(this, struct, ID, "start", "end", "type", PROPERTIES);
         },
 
-        Path: function(struct) {
+        Path: function (struct) {
             var nodes = struct[0],
                 relationships = struct[1],
                 sequence = struct[2],
@@ -42,17 +36,17 @@
                 entities = [lastNode],
                 i,
                 relationshipIndex,
-                r;
-            for(i = 0; i < sequence.length; i += 2)
-            {
+                r,
+                rel = js2neo.Relationship;
+            for (i = 0; i < sequence.length; i += 2) {
                 relationshipIndex = sequence[i];
                 nextNode = nodes[sequence[2 * i + 1]];
                 if (relationshipIndex > 0) {
                     r = relationships[relationshipIndex - 1];
-                    entities.push(new js2neo.Relationship([r.id, lastNode.id, nextNode.id, r.type, r.properties]));
+                    entities.push(new rel([r.id, lastNode.id, nextNode.id, r.type, r.properties]));
                 } else {
                     r = relationships[relationships.length + relationshipIndex];
-                    entities.push(new js2neo.Relationship([r.id, nextNode.id, lastNode.id, r.type, r.properties]));
+                    entities.push(new rel([r.id, nextNode.id, lastNode.id, r.type, r.properties]));
                 }
                 entities.push(nextNode);
                 lastNode = nextNode
@@ -89,7 +83,7 @@
             unwind.call(this, struct, "months", DAYS, SECONDS, NANOSECONDS);
         },
 
-        version: "1.0.0-alpha.0"
+        version: "1.0.0-beta.1"
 
     };
 
@@ -122,39 +116,80 @@
     function pack(tag, fields) {
         var d = str(0xB0 + fields.length, tag);
 
-        function pack1(x) {
-            var i,  // loop counter
-                z;  // size
-            if (x === null) {
-                d += "\xC0";
-            }
-            else {
-                if (typeof x === "string") {
-                    z = x.length;
-                    if (z < 0x10) {
-                        d += str(0x80 + z) + x;
-                    }
-                    else if (z < 0x100) {
-                        d += "\xD0" + str(z) + x;
-                    }
-                    else if (z < 0x10000) {
-                        d += "\xD1" + str(z >> 8) + str(z & 255) + x;
-                    }
-                    // TODO
-                }
-                else {
-                    var keys = Object.getOwnPropertyNames(x);
-                    d += str(0xA0 + keys.length);
-                    for (i = 0; i < keys.length; i++) {
-                        pack1(keys[i]);
-                        pack1(x[keys[i]]);
-                    }
-                }
+        function int32(n) {
+            return str(n >> 24) + str(n >> 16 & 255) + str(n >> 8 & 255) + str(n & 255);
+        }
+
+        function packInt(n) {
+            // TODO: inRange function
+            if (n >= 0 && n < 0x80)
+                d += str(n);
+            else if (n >= -16 && n < 0)
+                d += str(256 + n);
+            else if (n >= -0x8000 && n < 0x8000)
+                d += "\xC9" + str(n >> 8) + str(n & 255);
+            else if (n >= -0x80000000 && n < 0x80000000)
+                d += "\xCA" + int32(n);
+            else
+                packFloat(n);
+        }
+
+        function packFloat(n) {
+            var array = new U8(8),
+                view = new DV(array.buffer);
+            view.setFloat64(0, n, false);
+            d += "\xC1" + str.apply(null, array);
+        }
+
+        function packHeader(size, tiny, small, medium, large)
+        {
+            size = Math.min(size, 0x7FFFFFFF);
+            if (size < 0x10)
+                d += str(tiny + size);
+            else if (size < 0x100)
+                d += small + str(size);
+            else if (size < 0x10000)
+                d += medium + str(size >> 8) + str(size & 255);
+            else
+                d += large + int32(size);
+            return size;
+        }
+
+        function packString(x) {
+            var size = packHeader(x.length, 0x80, "\xD0", "\xD1", "\xD2");
+            d += x.substr(0, size);
+        }
+
+        function packArray(a) {
+            var size = packHeader(a.length, 0x90, "\xD4", "\xD5", "\xD6");
+            for (var i = 0; i < size; i++)
+                pack1(a[i]);
+        }
+
+        function packObject(x) {
+            var keys = Object.getOwnPropertyNames(x),
+                size = packHeader(keys.length, 0xA0, "\xD8", "\xD9", "\xDA"),
+                key;
+            for (var i = 0; i < size; i++) {
+                key = keys[i];
+                pack1(key);
+                pack1(x[key]);
             }
         }
 
-        for (var i = 0; i < fields.length; i++)
-            pack1(fields[i]);
+        function pack1(x) {
+            if (Array.isArray(x)) packArray(x);
+            else {
+                var t = typeof x;
+                if (t === "boolean") d += x ? "\xC3" : "\xC2";
+                else if (t === "number") (x % 1 === 0) ? packInt(x) : packFloat(x);
+                else if (t === "string") packString(x);
+                else if (t === "object") packObject(x);
+                else d += "\xC0";
+            }
+        }
+
+        fields.forEach(pack1);
 
         return d;
     }
@@ -174,6 +209,16 @@
             var x = p; p += size; return x;
         }
 
+        function getInt64(view, offset) {
+            var hi = view.getUint32(offset, false).toString(16),
+                lo = view.getUint32(offset + 4, false).toString(16);
+            while (hi.length < 8)
+                hi = "0" + hi;
+            while (lo.length < 8)
+                lo = "0" + lo;
+            return parseInt("0x" + hi + lo, 16);
+        }
+
         function unpackString(size) {
             var s = "", end = p + size;
             for (; p < end; p++)
@@ -181,18 +226,16 @@
             return s;
         }
 
-        function unpackList(size)
-        {
+        function unpackList(size) {
             var list = [];
-            for (var i = 0; i < size; i++)
+            while (size--)
                 list.push(unpack1());
             return list;
         }
 
-        function unpackMap(size)
-        {
+        function unpackMap(size) {
             var map = {};
-            for (var i = 0; i < size; i++) {
+            while (size--) {
                 var key = unpack1();
                 map[key] = unpack1();
             }
@@ -202,15 +245,14 @@
         function unpackStructure(size)
         {
             var fields = [view.getUint8(p++)];
-            for (var i = 0; i < size; i++)
+            while (size--)
                 fields.push(unpack1());
             return fields;
         }
 
         function hydrateStructure(size) {
             var struct = unpackStructure(size),
-                tag = struct[0],
-                type = types[tag];
+                type = types[struct[0]];
             return type ? new type(struct.slice(1)) : struct;
         }
 
@@ -279,11 +321,9 @@
 
     function encode(text)
     {
-        var data = new Uint8Array(text.length);
+        var data = new U8(text.length);
         for (var i = 0; i < text.length; i++)
-        {
             data[i] = text.charCodeAt(i);
-        }
         return data.buffer;
     }
 
@@ -301,7 +341,7 @@
                 principal: pub.user,
                 credentials: args.password
             },
-            chunkHeader = new Uint8Array(2),
+            chunkHeader = new U8(2),
             pvt = {},
             requests = [],
             handlers = [];
@@ -311,16 +351,16 @@
             pvt.inChunks = [];
             pvt.ready = false;
 
-            pvt.socket = new WebSocket((pub.secure ? "wss" : "ws") + "://" + pub.host + ":" + pub.port);
-            pvt.socket.binaryType = "arraybuffer";
-            pvt.socket.onmessage = onHandshake;
-            pvt.socket.onerror = args.onError || NOOP;
-            pvt.socket.onclose = args.onClose || NOOP;
+            var s = pvt.socket = new WebSocket((pub.secure ? "wss" : "ws") + "://" + pub.host + ":" + pub.port);
+            s.binaryType = "arraybuffer";
+            s.onmessage = onHandshake;
+            s.onerror = args.onError || NOOP;
+            s.onclose = args.onClose || NOOP;
 
             // Connection opened
-            pvt.socket.onopen = function () {
+            s.onopen = function () {
                 (args.onOpen || NOOP)(pub);
-                send(new Uint8Array([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
+                send(new U8([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
             };
 
             requests.push([0x01, [pub.userAgent, auth], {
@@ -363,7 +403,7 @@
 
         function onHandshake(event)
         {
-            var view = new DataView(event.data);
+            var view = new DV(event.data);
             pub.protocolVersion = view.getInt32(0, false);
             (args.onHandshake || NOOP)(pub);
             pvt.socket.onmessage = onData;
@@ -372,7 +412,7 @@
 
         function onMessage(data)
         {
-            var message = unpack(new DataView(data)),
+            var message = unpack(new DV(data)),
                 handler = (message[0] === 0x71) ? handlers[0] : handlers.shift();
 
             // Automatically send ACK_FAILURE as required
@@ -389,11 +429,11 @@
 
         function onData(event)
         {
-            var more = true,
+            var more = 1,
                 chunkSize,
                 endOfChunk,
                 chunkData,
-                inData = pvt.inData += str.apply(null, new Uint8Array(event.data)),
+                inData = pvt.inData += str.apply(null, new U8(event.data)),
                 inChunks = pvt.inChunks;
             while (more) {
                 chunkSize = inData.charCodeAt(0) << 8 | inData.charCodeAt(1);
@@ -411,23 +451,22 @@
                 }
                 else
                 {
-                    more = false;
+                    more = 0;
                 }
             }
         }
 
-        this.run = function(workload) {
+        this.run = function(cypher, args) {
 
-            var cypher = workload.cypher;
             if (cypher.length > 0) {
-                requests.push([0x10, [cypher, workload.parameters || {}], {
-                    0x70: workload.onHeader || NOOP,
-                    0x7F: workload.onFailure || NOOP
+                requests.push([0x10, [cypher, args.params || {}], {
+                    0x70: args.onHeader || NOOP,
+                    0x7F: args.onFailure || NOOP
                 }]);
                 requests.push([0x3F, [], {
-                    0x70: workload.onFooter || NOOP,
-                    0x71: workload.onRecord || NOOP,
-                    0x7F: workload.onFailure || NOOP
+                    0x70: args.onFooter || NOOP,
+                    0x71: args.onRecord || NOOP,
+                    0x7F: args.onFailure || NOOP
                 }]);
             }
             if (pvt.ready) sendRequests();
@@ -441,4 +480,6 @@
 
     }
 
-})();
+    console.log("js2neo v" + global.js2neo.version)
+
+}(typeof window !== "undefined" ? window : global);

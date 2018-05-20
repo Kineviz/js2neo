@@ -14,7 +14,7 @@
     <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js" integrity="sha384-smHYKdLADwkXOn1EmN1qk/HfnUcbVRZyYmZ4qpPea6sjB/pTJ0euyQp0Mk8ck+5T" crossorigin="anonymous"></script>
-    <script src="dist/js2neo.js"></script>
+    <script src="dist/js2neo.min.js"></script>
 
     <!-- noppa/text-security -->
     <link rel="stylesheet" type="text/css" href="https://rawgit.com/noppa/text-security/master/dist/text-security.css">
@@ -35,11 +35,23 @@
 
         <p>
             Js2neo is a tiny Neo4j connector for JavaScript.
-            It contains the bare minimum required to run Cypher queries but with full data type support.
+            It contains the bare minimum required to run Cypher queries over Bolt.
         </p>
 
+        <h2>Download</h2>
+        <div class="form-group">
+            <a class="btn btn-primary btn-lg" href="dist/js2neo.min.js">js2neo.min.js</a>
+            <!--a class="btn btn-primary btn-lg" href="dist/js2neo.js">Download <em>js2neo.js</em></a-->
+        </div>
+
+        <h2>Quick Example</h2>
+        <div class="form-group">
+<pre><code>js2neo.bolt({password: "password"}).run("RETURN $x", {params: {x: "hello, world"}, onRecord: console.log})
+</code></pre>
+        </div>
+
         <form id="connection-form">
-            <h2>Connection</h2>
+            <h2>Test Connection</h2>
             <div class="form-group row">
                 <div class="col">
                     <label for="host">Host</label>
@@ -73,7 +85,7 @@
         </form>
 
         <form id="query-form">
-            <h2>Cypher</h2>
+            <h2>Test Cypher Execution</h2>
             <div class="form-group row">
                 <div class="col-12">
                     <label for="cypher">Statement</label>
@@ -81,8 +93,8 @@
 RETURN a.name, a.born, collect(m.title)</textarea>
                 </div>
                 <!--<div class="col-4">-->
-                    <!--<label for="parameters">Parameters</label>-->
-                    <!--<select id="parameters" class="custom-select" size="3" style="height:7.5rem">-->
+                    <!--<label for="params">Parameters</label>-->
+                    <!--<select id="params" class="custom-select" size="3" style="height:7.5rem">-->
                     <!--</select>-->
                 <!--</div>-->
             </div>
@@ -201,8 +213,7 @@ RETURN a.name, a.born, collect(m.title)</textarea>
                 count = 0,
                 t0 = new Date();
 
-            pub.bolt.run({
-                cypher: cypher,
+            pub.bolt.run(cypher, {
                 onHeader: function (metadata) {
                     $("#result-form").show();
                     var tr = document.createElement("tr");
