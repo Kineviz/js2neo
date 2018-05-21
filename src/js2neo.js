@@ -12,8 +12,8 @@
         TZ = "tz",
 
         str = String.fromCharCode,
-        DV = DataView,
-        U8 = Uint8Array;
+        DataView_ = DataView,
+        Uint8Array_ = Uint8Array;
 
     global.js2neo = {
 
@@ -121,11 +121,8 @@
         }
 
         function packInt(n) {
-            // TODO: inRange function
-            if (n >= 0 && n < 0x80)
-                d += str(n);
-            else if (n >= -16 && n < 0)
-                d += str(256 + n);
+            if (n >= -0x10 && n < 0x80)
+                d += str((0x100 + n) % 0x100);
             else if (n >= -0x8000 && n < 0x8000)
                 d += "\xC9" + str(n >> 8) + str(n & 255);
             else if (n >= -0x80000000 && n < 0x80000000)
@@ -135,19 +132,17 @@
         }
 
         function packFloat(n) {
-            var array = new U8(8),
-                view = new DV(array.buffer);
+            var array = new Uint8Array_(8),
+                view = new DataView_(array.buffer);
             view.setFloat64(0, n, false);
             d += "\xC1" + str.apply(null, array);
         }
 
-        function packHeader(size, tiny, small, medium, large)
+        function packHeader(size, tiny, medium, large)
         {
             size = Math.min(size, 0x7FFFFFFF);
             if (size < 0x10)
                 d += str(tiny + size);
-            else if (size < 0x100)
-                d += small + str(size);
             else if (size < 0x10000)
                 d += medium + str(size >> 8) + str(size & 255);
             else
@@ -155,20 +150,9 @@
             return size;
         }
 
-        function packString(x) {
-            var size = packHeader(x.length, 0x80, "\xD0", "\xD1", "\xD2");
-            d += x.substr(0, size);
-        }
-
-        function packArray(a) {
-            var size = packHeader(a.length, 0x90, "\xD4", "\xD5", "\xD6");
-            for (var i = 0; i < size; i++)
-                pack1(a[i]);
-        }
-
         function packObject(x) {
             var keys = Object.getOwnPropertyNames(x),
-                size = packHeader(keys.length, 0xA0, "\xD8", "\xD9", "\xDA"),
+                size = packHeader(keys.length, 0xA0, "\xD9", "\xDA"),
                 key;
             for (var i = 0; i < size; i++) {
                 key = keys[i];
@@ -178,14 +162,40 @@
         }
 
         function pack1(x) {
-            if (Array.isArray(x)) packArray(x);
+            var size, i;
+
+            // Check for an array first, if so pack as a List
+            if (Array.isArray(x)) {
+                size = packHeader(x.length, 0x90, "\xD5", "\xD6");
+                for (i = 0; i < size; i++)
+                    pack1(x[i]);
+            }
+
             else {
+                // Determine by type
                 var t = typeof x;
-                if (t === "boolean") d += x ? "\xC3" : "\xC2";
-                else if (t === "number") (x % 1 === 0) ? packInt(x) : packFloat(x);
-                else if (t === "string") packString(x);
-                else if (t === "object") packObject(x);
-                else d += "\xC0";
+
+                //
+                if (t === "boolean")
+                    d += x ? "\xC3" : "\xC2";
+
+                //
+                else if (t === "number")
+                    (x % 1 === 0) ? packInt(x) : packFloat(x);
+
+                //
+                else if (t === "string") {
+                    size = packHeader(x.length, 0x80, "\xD1", "\xD2");
+                    d += x.substr(0, size);
+                }
+
+                //
+                else if (t === "object")
+                    packObject(x);
+
+                // Everything else is packed as null
+                else
+                    d += "\xC0";
             }
         }
 
@@ -321,7 +331,7 @@
 
     function encode(text)
     {
-        var data = new U8(text.length);
+        var data = new Uint8Array_(text.length);
         for (var i = 0; i < text.length; i++)
             data[i] = text.charCodeAt(i);
         return data.buffer;
@@ -341,7 +351,7 @@
                 principal: pub.user,
                 credentials: args.password
             },
-            chunkHeader = new U8(2),
+            chunkHeader = new Uint8Array_(2),
             pvt = {},
             requests = [],
             handlers = [];
@@ -354,13 +364,13 @@
             var s = pvt.socket = new WebSocket((pub.secure ? "wss" : "ws") + "://" + pub.host + ":" + pub.port);
             s.binaryType = "arraybuffer";
             s.onmessage = onHandshake;
-            s.onerror = args.onError || NOOP;
-            s.onclose = args.onClose || NOOP;
+            s.onerror = args.onError;
+            s.onclose = args.onClose;
 
             // Connection opened
             s.onopen = function () {
                 (args.onOpen || NOOP)(pub);
-                send(new U8([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
+                send(new Uint8Array_([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
             };
 
             requests.push([0x01, [pub.userAgent, auth], {
@@ -403,7 +413,7 @@
 
         function onHandshake(event)
         {
-            var view = new DV(event.data);
+            var view = new DataView_(event.data);
             pub.protocolVersion = view.getInt32(0, false);
             (args.onHandshake || NOOP)(pub);
             pvt.socket.onmessage = onData;
@@ -412,7 +422,7 @@
 
         function onMessage(data)
         {
-            var message = unpack(new DV(data)),
+            var message = unpack(new DataView_(data)),
                 handler = (message[0] === 0x71) ? handlers[0] : handlers.shift();
 
             // Automatically send ACK_FAILURE as required
@@ -433,7 +443,7 @@
                 chunkSize,
                 endOfChunk,
                 chunkData,
-                inData = pvt.inData += str.apply(null, new U8(event.data)),
+                inData = pvt.inData += str.apply(null, new Uint8Array_(event.data)),
                 inChunks = pvt.inChunks;
             while (more) {
                 chunkSize = inData.charCodeAt(0) << 8 | inData.charCodeAt(1);
