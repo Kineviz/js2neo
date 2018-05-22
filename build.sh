@@ -11,4 +11,8 @@ sed -i "1s;^;${HEADER};" ${ROOT}/docs/dist/js2neo.min.js
 
 gzip -k -f ${ROOT}/docs/dist/js2neo.min.js
 
+# Write the sizes.js file
+echo "var sizes = {};" > ${ROOT}/docs/sizes.js
+ls -l ${ROOT}/docs/dist | sed 1d | awk '{print("sizes[\"" $9 "\"] = " $5 ";")}' >> ${ROOT}/docs/sizes.js
+
 ls -l ${ROOT}/docs/dist

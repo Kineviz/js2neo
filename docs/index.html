@@ -6,20 +6,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
     <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous">
+    <link rel="stylesheet" href="cdn/bootstrap.min.css" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous">
 
     <title>js2neo</title>
     <!-- Optional JavaScript -->
     <!-- jQuery first, then Popper.js, then Bootstrap JS -->
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js" integrity="sha384-smHYKdLADwkXOn1EmN1qk/HfnUcbVRZyYmZ4qpPea6sjB/pTJ0euyQp0Mk8ck+5T" crossorigin="anonymous"></script>
+    <script src="cdn/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="cdn/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+    <script src="cdn/bootstrap.min.js" integrity="sha384-smHYKdLADwkXOn1EmN1qk/HfnUcbVRZyYmZ4qpPea6sjB/pTJ0euyQp0Mk8ck+5T" crossorigin="anonymous"></script>
     <script src="dist/js2neo.min.js"></script>
+    <script src="sizes.js"></script>
 
     <!-- noppa/text-security -->
-    <link rel="stylesheet" type="text/css" href="https://rawgit.com/noppa/text-security/master/dist/text-security.css">
+    <link rel="stylesheet" type="text/css" href="cdn/text-security.css">
 
     <style>
+        h2 { margin-top: 2rem }
         textarea, table { font-family: monospace }
         .text-security {
             font-family: "text-security-disc"
@@ -29,47 +31,42 @@
   </head>
   <body style="overflow-y:scroll">
 
-  <div style="position:fixed; width:100%">
-      <a href="https://github.com/technige/js2neo">
-          <img style="position: absolute; top: 0; left: 0; border: 0;"
-               src="https://s3.amazonaws.com/github/ribbons/forkme_left_green_007200.png"
-               alt="Fork me on GitHub">
-      </a>
-
-      <!-- AddToAny BEGIN -->
-      <div class="a2a_kit a2a_kit_size_32 a2a_default_style" style="position:absolute;top:1rem;right:1rem">
-          <a class="a2a_dd" href="https://www.addtoany.com/share"></a>
-          <a class="a2a_button_facebook"></a>
-          <a class="a2a_button_twitter"></a>
-          <a class="a2a_button_google_plus"></a>
-      </div>
-      <script async src="https://static.addtoany.com/menu/page.js"></script>
-      <!-- AddToAny END -->
-  </div>
-
   <div class="container">
 
-        <h1 style="text-align: center;padding: 6rem 0 3rem 0">
-            <img src="art/js2neo-2018.280x50.png">
-        </h1>
+      <h1 style="text-align: center;padding: 3rem 0">
+          <img src="art/js2neo-2018.280x50.png">
+      </h1>
 
-        <p>
-            Js2neo is a tiny Neo4j connector for JavaScript.
-            It contains the bare minimum required to run Cypher queries over Bolt.
-        </p>
+      <p>
+          Js2neo is a tiny Neo4j connector for JavaScript.
+          It contains the bare minimum required to run Cypher queries over Bolt.
+      </p>
 
-        <h2>Download</h2>
+
         <div class="form-group">
-            <a class="btn btn-primary btn-lg" href="dist/js2neo.min.js">js2neo.min.js</a>
-            <!--a class="btn btn-primary btn-lg" href="dist/js2neo.js">Download <em>js2neo.js</em></a-->
-
-        </div>
-
-        <h2>Quick Example</h2>
-        <div class="form-group">
-<pre><code>js2neo.bolt({password: "password"}).run("RETURN $x", {params: {x: "hello, world"}, onRecord: console.log})
+<pre><code>js2neo.bolt({password: "password"})
+      .run("RETURN $x", {params: {x: "hello, world"}, onRecord: console.log})
 </code></pre>
         </div>
+
+      <div style="margin:1.5rem 0">
+          <a class="btn btn-success btn-lg" href="dist/js2neo.min.js" style="text-align: left;margin-right:1rem;padding-right:6rem">
+              <div style="font-size:250%;float:left;padding-right:1rem;">⇩</div>
+              <div style="font-size:150%">Download <strong>js2neo.min.js</strong></div>
+              <small><em>(<script>document.write(sizes["js2neo.min.js"])</script> bytes, <script>document.write(sizes["js2neo.min.js.gz"])</script> bytes gzipped)</em></small>
+          </a>
+          <a class="btn btn-success btn-lg" href="dist/js2neo.js" style="text-align: left;margin-right:1rem;padding-right:6rem">
+              <div style="font-size:250%;float:left;padding-right:1rem;">⇩</div>
+              <div style="font-size:150%">Download <strong>js2neo.js</strong></div>
+              <small><em>(<script>document.write(sizes["js2neo.js"])</script> bytes)</em></small>
+          </a>
+      </div>
+
+      <!--a class="btn btn-primary btn-lg" href="dist/js2neo.js">Download <em>js2neo.js</em></a-->
+
+      <div>
+          ...or grab the source code from <a href="https://github.com/technige/js2neo">https://github.com/technige/js2neo</a>
+      </div>
 
         <form id="connection-form">
             <h2>Test Connection</h2>

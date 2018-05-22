@@ -87,9 +87,19 @@
 
     };
 
+    function NOOP() {}
+
     function unwind(struct) {
         for (var i = 0; i < struct.length; i++)
             this[arguments[i + 1]] = struct[i];
+    }
+
+    function encode(text)
+    {
+        var data = new Uint8Array_(text.length);
+        for (var i = 0; i < text.length; i++)
+            data[i] = text.charCodeAt(i);
+        return data.buffer;
     }
 
     function UnboundRelationship(struct) {
@@ -110,107 +120,6 @@
         0x72: UnboundRelationship,
         0x74: js2neo.LocalTime
     };
-
-    function NOOP() {}
-
-    function pack(tag, fields) {
-        var d = str(0xB0 + fields.length, tag);
-
-        function int32(n) {
-            return str(n >> 24) + str(n >> 16 & 255) + str(n >> 8 & 255) + str(n & 255);
-        }
-
-        function packInt(n) {
-            if (n >= -0x10 && n < 0x80)
-                d += str((0x100 + n) % 0x100);
-            else if (n >= -0x8000 && n < 0x8000)
-                d += "\xC9" + str(n >> 8) + str(n & 255);
-            else if (n >= -0x80000000 && n < 0x80000000)
-                d += "\xCA" + int32(n);
-            else
-                packFloat(n);
-        }
-
-        function packFloat(n) {
-            var array = new Uint8Array_(8),
-                view = new DataView_(array.buffer);
-            view.setFloat64(0, n, false);
-            d += "\xC1" + str.apply(null, array);
-        }
-
-        function packHeader(size, tiny, medium, large)
-        {
-            size = Math.min(size, 0x7FFFFFFF);
-            if (size < 0x10)
-                d += str(tiny + size);
-            else if (size < 0x10000)
-                d += medium + str(size >> 8) + str(size & 255);
-            else
-                d += large + int32(size);
-            return size;
-        }
-
-        function packObject(x) {
-            var keys = Object.getOwnPropertyNames(x),
-                size = packHeader(keys.length, 0xA0, "\xD9", "\xDA"),
-                key;
-            for (var i = 0; i < size; i++) {
-                key = keys[i];
-                pack1(key);
-                pack1(x[key]);
-            }
-        }
-
-        function pack1(x) {
-            var size, i;
-
-            // Check for an array first, if so pack as a List
-            if (Array.isArray(x)) {
-                size = packHeader(x.length, 0x90, "\xD5", "\xD6");
-                for (i = 0; i < size; i++)
-                    pack1(x[i]);
-            }
-
-            else {
-                // Determine by type
-                var t = typeof x;
-
-                //
-                if (t === "boolean")
-                    d += x ? "\xC3" : "\xC2";
-
-                //
-                else if (t === "number")
-                    (x % 1 === 0) ? packInt(x) : packFloat(x);
-
-                //
-                else if (t === "string") {
-                    size = packHeader(x.length, 0x80, "\xD1", "\xD2");
-                    d += x.substr(0, size);
-                }
-
-                //
-                else if (t === "object")
-                    packObject(x);
-
-                // Everything else is packed as null
-                else
-                    d += "\xC0";
-            }
-        }
-
-        fields.forEach(pack1);
-
-        return d;
-    }
-
-    function encode(text)
-    {
-        var data = new Uint8Array_(text.length);
-        for (var i = 0; i < text.length; i++)
-            data[i] = text.charCodeAt(i);
-        return data.buffer;
-    }
 
     function Bolt(args) {
         args = args || {};
@@ -273,7 +182,92 @@
 
             while (requests.length > 0) {
                 var request = requests.shift(),
-                    data = pack(request[0], request[1]);
+                    data = str(0xB0 + request[1].length, request[0]);
+                request[1].forEach(pack1);
+
+                function int32(n) {
+                    return str(n >> 24) + str(n >> 16 & 255) + str(n >> 8 & 255) + str(n & 255);
+                }
+
+                function packInt(n) {
+                    if (n >= -0x10 && n < 0x80)
+                        data += str((0x100 + n) % 0x100);
+                    else if (n >= -0x8000 && n < 0x8000)
+                        data += "\xC9" + str(n >> 8) + str(n & 255);
+                    else if (n >= -0x80000000 && n < 0x80000000)
+                        data += "\xCA" + int32(n);
+                    else
+                        packFloat(n);
+                }
+
+                function packFloat(n) {
+                    var array = new Uint8Array_(8),
+                        view = new DataView_(array.buffer);
+                    view.setFloat64(0, n, false);
+                    data += "\xC1" + str.apply(null, array);
+                }
+
+                function packHeader(size, tiny, medium, large)
+                {
+                    size = Math.min(size, 0x7FFFFFFF);
+                    if (size < 0x10)
+                        data += str(tiny + size);
+                    else if (size < 0x10000)
+                        data += medium + str(size >> 8) + str(size & 255);
+                    else
+                        data += large + int32(size);
+                    return size;
+                }
+
+                function packObject(x) {
+                    var keys = Object.getOwnPropertyNames(x),
+                        size = packHeader(keys.length, 0xA0, "\xD9", "\xDA"),
+                        key;
+                    for (var i = 0; i < size; i++) {
+                        key = keys[i];
+                        pack1(key);
+                        pack1(x[key]);
+                    }
+                }
+
+                function pack1(x) {
+                    var size, i;
+
+                    // Check for an array first, if so pack as a List
+                    if (Array.isArray(x)) {
+                        size = packHeader(x.length, 0x90, "\xD5", "\xD6");
+                        for (i = 0; i < size; i++)
+                            pack1(x[i]);
+                    }
+
+                    else {
+                        // Determine by type
+                        var t = typeof x;
+
+                        //
+                        if (t === "boolean")
+                            data += x ? "\xC3" : "\xC2";
+
+                        //
+                        else if (t === "number")
+                            (x % 1 === 0) ? packInt(x) : packFloat(x);
+
+                        //
+                        else if (t === "string") {
+                            size = packHeader(x.length, 0x80, "\xD1", "\xD2");
+                            data += x.substr(0, size);
+                        }
+
+                        //
+                        else if (t === "object")
+                            packObject(x);
+
+                        // Everything else is packed as null
+                        else
+                            data += "\xC0";
+                    }
+                }
+
                 handlers.push(request[2]);
                 while (data.length > 0x7FFF) {
                     sendChunkHeader(0x7F, 0xFF);
