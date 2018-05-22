@@ -13,7 +13,8 @@
 
         str = String.fromCharCode,
         DataView_ = DataView,
-        Uint8Array_ = Uint8Array;
+        Uint8Array_ = Uint8Array,
+        min = Math.min;
 
     global.js2neo = {
 
@@ -176,7 +177,7 @@
             while (requests.length > 0) {
                 var request = requests.shift(),
                     data = str(0xB0 + request[1].length, request[0]),
-                    chunkSize;
+                    chunkSize = 0;
                 request[1].forEach(pack1);
 
                 function int32(n) {
@@ -201,9 +202,8 @@
                     data += "\xC1" + str.apply(null, array);
                 }
 
-                function packHeader(size, tiny, medium, large)
-                {
-                    size = Math.min(size, 0x7FFFFFFF);
+                function packHeader(size, tiny, medium, large) {
+                    size = min(size, 0x7FFFFFFF);
                     if (size < 0x10)
                         data += str(tiny + size);
                     else if (size < 0x10000)
@@ -265,11 +265,10 @@
                 handlers.push(request[2]);
 
                 do {
-                    chunkSize = Math.min(data.length, 0x7FFF);
-                    send(encode(str(chunkSize >> 8, chunkSize & 0xFF) + data.substr(0, chunkSize)));
                     data = data.substr(chunkSize);
+                    chunkSize = min(data.length, 0x7FFF);
+                    send(encode(str(chunkSize >> 8, chunkSize & 0xFF) + data.substr(0, chunkSize)));
                 } while(data);
-                send(encode(str(0, 0)));
 
             }
         }
