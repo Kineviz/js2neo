@@ -20,14 +20,32 @@
     <!-- noppa/text-security -->
     <link rel="stylesheet" type="text/css" href="cdn/text-security.css">
 
-    <style>
-        h2 { margin-top: 2rem }
-        textarea, table { font-family: monospace }
-        .text-security {
-            font-family: "text-security-disc"
-        }
+      <style>
+          h2 {
+              margin-top: 2rem
+          }
 
-    </style>
+          textarea, table.result {
+              font-family: monospace
+          }
+
+          .text-security {
+              font-family: "text-security-disc"
+          }
+
+          code {
+              font-size: 1rem;
+          }
+
+          pre {
+              padding: .5rem .8rem;
+              font-size: 1rem;
+              line-height: 1.5;
+              border-radius: .3rem;
+              background-color: #F0F0EC;
+          }
+
+      </style>
   </head>
   <body style="overflow-y:scroll">
 
@@ -38,35 +56,93 @@
       </h1>
 
       <p>
-          Js2neo is a tiny Neo4j connector for JavaScript.
-          It contains the bare minimum required to run Cypher queries over Bolt.
+          The <strong>js2neo</strong> library is a tiny Neo4j connector for JavaScript.
+          It contains the bare minimum required to run Cypher queries in a little over 2KB when gzipped.
+          No support for transactions or routing is provided.
       </p>
 
-
-        <div class="form-group">
-<pre><code>js2neo.bolt({password: "password"})
-      .run("RETURN $x", {params: {x: "hello, world"}, onRecord: console.log})
-</code></pre>
-        </div>
-
       <div style="margin:1.5rem 0">
-          <a class="btn btn-success btn-lg" href="dist/js2neo.min.js" style="text-align: left;margin-right:1rem;padding-right:6rem">
+          <a class="btn btn-success btn-lg" href="dist/js2neo.min.js"
+             style="text-align: left;margin-right:1rem;padding-right:6rem">
               <div style="font-size:250%;float:left;padding-right:1rem;">⇩</div>
               <div style="font-size:150%">Download <strong>js2neo.min.js</strong></div>
-              <small><em>(<script>document.write(sizes["js2neo.min.js"])</script> bytes, <script>document.write(sizes["js2neo.min.js.gz"])</script> bytes gzipped)</em></small>
+              <small><em>(
+                  <script>document.write(sizes["js2neo.min.js"])</script>
+                  bytes,
+                  <script>document.write(sizes["js2neo.min.js.gz"])</script>
+                  bytes gzipped)</em></small>
           </a>
-          <a class="btn btn-success btn-lg" href="dist/js2neo.js" style="text-align: left;margin-right:1rem;padding-right:6rem">
+          <a class="btn btn-secondary btn-lg" href="https://github.com/technige/js2neo"
+             style="text-align: left;margin-right:1rem;padding-right:8rem">
+              <div style="font-size:250%;float:left;padding-right:1rem;">⌨</div>
+              <div style="font-size:150%">Get the code</div>
+              <small><em>https://github.com/technige/js2neo</em></small>
+          </a>
+          <!--
+          <a class="btn btn-success btn-lg" href="dist/js2neo.js"
+             style="text-align: left;margin-right:1rem;padding-right:6rem">
               <div style="font-size:250%;float:left;padding-right:1rem;">⇩</div>
               <div style="font-size:150%">Download <strong>js2neo.js</strong></div>
-              <small><em>(<script>document.write(sizes["js2neo.js"])</script> bytes)</em></small>
+              <small><em>(
+                  <script>document.write(sizes["js2neo.js"])</script>
+                  bytes)</em></small>
           </a>
+          -->
       </div>
 
-      <!--a class="btn btn-primary btn-lg" href="dist/js2neo.js">Download <em>js2neo.js</em></a-->
+      <p>
+          To use this in a web page, download the <code>js2neo.min.js</code> file (above) or insert the following <code>&lt;script&gt;</code> tag:
+          <pre><code>&lt;script src=&quot;http://js2neo.org/dist/js2neo.min.js&quot;&gt;&lt;/script&gt;</code></pre>
+      </p>
 
-      <div>
-          ...or grab the source code from <a href="https://github.com/technige/js2neo">https://github.com/technige/js2neo</a>
-      </div>
+      <p>
+          Once installed, call the <code>js2neo.open</code> method with settings for your database.
+          This returns an connection object that wraps a single web socket connection and which can be used to <code>run</code> queries.
+          For example:
+          <pre><code>var cx = js2neo.open({host: "graph.example.com", user: "technige", password: "P4ssw0rd!"})</code></pre>
+      </p>
+
+      <p>
+          The following arguments are supported:
+      </p>
+
+      <table class="table">
+          <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+          <tr><td>secure</td><td>boolean</td><td>A flag to indicate whether or not to use a secure web socket.</td></tr>
+          <tr><td>user</td><td>string</td><td>The name of the user to authenticate as.</td></tr>
+          <tr><td>password</td><td>string</td><td>The password for the given user.</td></tr>
+          <tr><td>host</td><td>string</td><td>The host name or IP address of the database server.</td></tr>
+          <tr><td>port</td><td>number</td><td>The port number of the database server.</td></tr>
+          <tr><td>userAgent</td><td>string</td><td>A custom user agent string.</td></tr>
+          <tr><td>onOpen</td><td>function(metadata)</td><td>
+              Called when a web socket connection is successfully established.
+              The event passes connection <code>metadata</code> containing <code>secure</code>, <code>user</code>, <code>host</code>, <code>port</code> and <code>userAgent</code> attributes.
+          </td></tr>
+          <tr><td>onHandshake</td><td>function(metadata)</td><td>
+              Called after the handshake that immediately follows a successful connection.
+              This adds a <code>protocolVersion</code> to the connection <code>metadata</code>.
+          </td></tr>
+          <tr><td>onInit</td><td>function(metadata)</td><td>
+              Called with connection <code>metadata</code> on successful initialisation, following the handshake.
+              This is the final stage of setup for a Bolt connection and therefore receipt of this event indicates that the connection is ready to run Cypher queries.
+          </td></tr>
+          <tr><td>onInitFailure</td><td>function(failure)</td><td>
+              Called if initialisation fails, generally due to an authentication error.
+              The event passed represents the failure that occurred and contains <code>code</code> and <code>message</code> attributes.
+              On receipt of this event, the connection can be deemed defunct.
+          </td></tr>
+          <tr><td>onClose</td><td>function(event)</td><td>
+              Called when the underlying web socket is closed, either gracefully or through error.
+          </td></tr>
+          <tr><td>onError</td><td>function(event)</td><td>
+              Called when an error occurs on the underlying the web socket.
+          </td></tr>
+      </table>
+
+      <p>
+          To run a query, call <code>run</code> on the connection object:
+      <pre><code>cx.run("RETURN $x", {x: "hello, world"}, {onRecord: console.log})</code></pre>
+      </p>
 
         <form id="connection-form">
             <h2>Test Connection</h2>
@@ -125,7 +201,7 @@ RETURN a.name, a.born, collect(m.title)</textarea>
 
         <form id="result-form">
             <h2>Result</h2>
-            <table id="result" class="table table-hover">
+            <table id="result" class="result table table-hover">
                 <thead id="result-head" class="thead-dark"></thead>
                 <tbody id="result-body"></tbody>
                 <tfoot id="result-foot" class="thead-dark"></tfoot>
@@ -173,7 +249,7 @@ RETURN a.name, a.born, collect(m.title)</textarea>
 
         function connect() {
             clearConnectionManagementStatus();
-            pub.bolt = js2neo.bolt({
+            pub.cx = js2neo.open({
                 host: document.getElementById("host").value,
                 port: parseInt(document.getElementById("port").value),
                 user: document.getElementById("user").value,
@@ -204,7 +280,7 @@ RETURN a.name, a.born, collect(m.title)</textarea>
                 onClose: function(event) {
                     //addConnectionManagementStatus("info", "Connection closed");
                     setConnected(false);
-                    pub.bolt = undefined;
+                    pub.cx = undefined;
                 },
                 onError: function(event)
                 {
@@ -215,7 +291,7 @@ RETURN a.name, a.born, collect(m.title)</textarea>
 
         function disconnect() {
             clearConnectionManagementStatus();
-            pub.bolt.close();
+            pub.cx.close();
         }
 
         function run(cypher) {
@@ -231,7 +307,7 @@ RETURN a.name, a.born, collect(m.title)</textarea>
                 count = 0,
                 t0 = new Date();
 
-            pub.bolt.run(cypher, {
+            pub.cx.run(cypher, {}, {
                 onHeader: function (metadata) {
                     $("#result-form").show();
                     var tr = document.createElement("tr");

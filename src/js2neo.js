@@ -18,7 +18,7 @@
 
     global.js2neo = {
 
-        bolt: function(args) { return new Bolt(args); },
+        open: function(args) { return new Connection(args); },
 
         Node: function(struct) {
             unwind.call(this, struct, ID, "labels", PROPERTIES);
@@ -122,13 +122,13 @@
         0x74: js2neo.LocalTime
     };
 
-    function Bolt(args) {
+    function Connection(args) {
         args = args || {};
         var pub = {
                 secure: args.secure || document.location.protocol === "https:",
+                user: args.user || "neo4j",
                 host: args.host || "localhost",
                 port: args.port || 7687,
-                user: args.user || "neo4j",
                 userAgent: args.userAgent || "js2neo/" + js2neo.version
             },
             auth = {
@@ -136,40 +136,37 @@
                 principal: pub.user,
                 credentials: args.password
             },
-            pvt = {},
-            requests = [],
+            pvt = {
+                inData: "",
+                inChunks: [],
+                ready: false,
+                socket: new WebSocket((pub.secure ? "wss" : "ws") + "://" + pub.host + ":" + pub.port)
+            },
+            s = pvt.socket,
+            requests = [
+                [0x01, [pub.userAgent, auth], {
+                    0x70: function () {
+                        (args.onInit || NOOP)(pub);
+                        pvt.ready = true;
+                    },
+                    0x7F: args.onInitFailure
+                }]
+            ],
             handlers = [];
 
-        function open() {
-            pvt.inData = "";
-            pvt.inChunks = [];
-            pvt.ready = false;
+        s.binaryType = "arraybuffer";
+        s.onmessage = onHandshake;
+        s.onerror = args.onError;
+        s.onclose = args.onClose;
 
-            var s = pvt.socket = new WebSocket((pub.secure ? "wss" : "ws") + "://" + pub.host + ":" + pub.port);
-            s.binaryType = "arraybuffer";
-            s.onmessage = onHandshake;
-            s.onerror = args.onError;
-            s.onclose = args.onClose;
-
-            // Connection opened
-            s.onopen = function () {
-                (args.onOpen || NOOP)(pub);
-                send(new Uint8Array_([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
-            };
-
-            requests.push([0x01, [pub.userAgent, auth], {
-                0x70: function () {
-                    (args.onInit || NOOP)(pub);
-                    pvt.ready = true;
-                },
-                0x7F: function (failure) {
-                    (args.onInitFailure || NOOP)(failure);
-                }
-            }]);
-        }
+        // Connection opened
+        s.onopen = function () {
+            (args.onOpen || NOOP)(pub);
+            send(new Uint8Array_([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
+        };
 
         function send(data) {
-            pvt.socket.send(data);
+            s.send(data);
         }
 
         function sendRequests() {
@@ -278,7 +275,7 @@
             var view = new DataView_(event.data);
             pub.protocolVersion = view.getInt32(0, false);
             (args.onHandshake || NOOP)(pub);
-            pvt.socket.onmessage = onData;
+            s.onmessage = onData;
             sendRequests();
         }
 
@@ -423,7 +420,7 @@
             if (message[0] === 0x7F)
                 requests.push([0x0E, [], {
                     0x7F: function (failure) {
-                        pvt.socket.close(4002, failure.code + ": " + failure.message);
+                        s.close(4002, failure.code + ": " + failure.message);
                     }
                 }]);
 
@@ -460,27 +457,25 @@
             }
         }
 
-        this.run = function(cypher, args) {
+        this.run = function(cypher, parameters, events) {
 
             if (cypher.length > 0) {
-                requests.push([0x10, [cypher, args.params || {}], {
-                    0x70: args.onHeader,
-                    0x7F: args.onFailure
+                requests.push([0x10, [cypher, parameters || {}], {
+                    0x70: events.onHeader,
+                    0x7F: events.onFailure
                 }]);
                 requests.push([0x3F, [], {
-                    0x70: args.onFooter,
-                    0x71: args.onRecord,
-                    0x7F: args.onFailure
+                    0x70: events.onFooter,
+                    0x71: events.onRecord,
+                    0x7F: events.onFailure
                 }]);
             }
             if (pvt.ready) sendRequests();
         };
 
         this.close = function() {
-            pvt.socket.close();
+            s.close();
         };
-
-        open();
 
     }
 
