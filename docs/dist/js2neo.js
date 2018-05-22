@@ -204,131 +204,6 @@
         return d;
     }
 
-    /**
-     * Unpack the first value from a DataView (there should be only one -- #Highlander).
-     *
-     * @param view
-     * @returns {Array}
-     */
-    function unpack(view) {
-        var p = 0,
-            size = view.getUint8(p++) - 0xB0;
-
-        function using(size)
-        {
-            var x = p; p += size; return x;
-        }
-
-        function getInt64(view, offset) {
-            var hi = view.getUint32(offset, false).toString(16),
-                lo = view.getUint32(offset + 4, false).toString(16);
-            while (hi.length < 8)
-                hi = "0" + hi;
-            while (lo.length < 8)
-                lo = "0" + lo;
-            return parseInt("0x" + hi + lo, 16);
-        }
-
-        function unpackString(size) {
-            var s = "", end = p + size;
-            for (; p < end; p++)
-                s += str(view.getUint8(p));
-            return s;
-        }
-
-        function unpackList(size) {
-            var list = [];
-            while (size--)
-                list.push(unpack1());
-            return list;
-        }
-
-        function unpackMap(size) {
-            var map = {};
-            while (size--) {
-                var key = unpack1();
-                map[key] = unpack1();
-            }
-            return map;
-        }
-
-        function unpackStructure(size)
-        {
-            var fields = [view.getUint8(p++)];
-            while (size--)
-                fields.push(unpack1());
-            return fields;
-        }
-
-        function hydrateStructure(size) {
-            var struct = unpackStructure(size),
-                type = types[struct[0]];
-            return type ? new type(struct.slice(1)) : struct;
-        }
-
-        function unpack1() {
-            var m = view.getUint8(p++);
-            if (m < 0x80)
-                return m;
-            else if (m < 0x90)
-                return unpackString(m - 0x80);
-            else if (m < 0xA0)
-                return unpackList(m - 0x90);
-            else if (m < 0xB0)
-                return unpackMap(m - 0xA0);
-            else if (m < 0xC0)
-                return hydrateStructure(m - 0xB0);
-            else if (m < 0xC1)
-                return null;
-            else if (m < 0xC2)
-                return view.getFloat64(using(8), false);
-            else if (m < 0xC4)
-                return !!(m & 1);
-            else if (m < 0xC8)
-                return undefined;
-            else if (m < 0xC9)
-                return view.getInt8(using(1));
-            else if (m < 0xCA)
-                return view.getInt16(using(2), false);
-            else if (m < 0xCB)
-                return view.getInt32(using(4), false);
-            else if (m < 0xCC)
-                return getInt64(view, using(8), false);
-            else if (m < 0xD0)
-                return undefined;
-            else if (m < 0xD1)
-                return unpackString(view.getUint8(p++));
-            else if (m < 0xD2)
-                return unpackString(view.getUint16(using(2)));
-            else if (m < 0xD3)
-                return unpackString(view.getUint32(using(4)));
-            else if (m < 0xD4)
-                return undefined;
-            else if (m < 0xD5)
-                return unpackList(view.getUint8(p++));
-            else if (m < 0xD6)
-                return unpackList(view.getUint16(using(2)));
-            else if (m < 0xD7)
-                return unpackList(view.getUint32(using(4)));
-            else if (m < 0xD8)
-                return undefined;
-            else if (m < 0xD9)
-                return unpackMap(view.getUint8(p++));
-            else if (m < 0xDA)
-                return unpackMap(view.getUint16(using(2)));
-            else if (m < 0xDB)
-                return unpackMap(view.getUint32(using(4)));
-            else if (m < 0xF0)
-                // Technically, longer structures fit here,
-                // but they're never used
-                return undefined;
-            else
-                return m - 0x100;
-        }
-
-        return unpackStructure(size);
-    }
-
     function encode(text)
     {
         var data = new Uint8Array_(text.length);
@@ -422,7 +297,139 @@
 
         function onMessage(data)
         {
-            var message = unpack(new DataView_(data)),
+            var view = new DataView_(data),
+                p = 0,
+                size = readUint8() - 0xB0;
+
+            function readUint8() {
+                return view.getUint8(p++);
+            }
+
+            function readUint16() {
+                p += 2;
+                return view.getUint16(p - 2, false)
+            }
+
+            function readUint32() {
+                p += 4;
+                return view.getUint16(p - 4, false)
+            }
+
+            function readInt64() {
+                var hi = view.getUint32(p, false).toString(16),
+                    lo = view.getUint32(p + 4, false).toString(16);
+                p += 8;
+                while (hi.length < 8)
+                    hi = "0" + hi;
+                while (lo.length < 8)
+                    lo = "0" + lo;
+                return parseInt("0x" + hi + lo, 16);
+            }
+
+            function unpackString(size) {
+                var s = "", end = p + size;
+                while (p < end)
+                    s += str(readUint8());
+                return s;
+            }
+
+            function unpackList(size) {
+                var list = [];
+                while (size--)
+                    list.push(unpack1());
+                return list;
+            }
+
+            function unpackMap(size) {
+                var map = {};
+                while (size--) {
+                    var key = unpack1();
+                    map[key] = unpack1();
+                }
+                return map;
+            }
+
+            function unpackStructure(size)
+            {
+                var fields = [readUint8()];
+                while (size--)
+                    fields.push(unpack1());
+                return fields;
+            }
+
+            function hydrateStructure(size) {
+                var struct = unpackStructure(size),
+                    type = types[struct[0]];
+                return type ? new type(struct.slice(1)) : struct;
+            }
+
+            function unpack1() {
+                var m = readUint8();
+                if (m < 0x80)
+                    return m;
+                else if (m < 0x90)
+                    return unpackString(m - 0x80);
+                else if (m < 0xA0)
+                    return unpackList(m - 0x90);
+                else if (m < 0xB0)
+                    return unpackMap(m - 0xA0);
+                else if (m < 0xC0)
+                    return hydrateStructure(m - 0xB0);
+                else if (m < 0xC1)
+                    return null;
+                else if (m < 0xC2) {
+                    p += 8;
+                    return view.getFloat64(p - 8, false);
+                }
+                else if (m < 0xC4)
+                    return !!(m & 1);
+                else if (m < 0xC8)
+                    return undefined;
+                else if (m < 0xC9)
+                    return view.getInt8(p++);
+                else if (m < 0xCA) {
+                    p += 2;
+                    return view.getInt16(p - 2, false);
+                }
+                else if (m < 0xCB) {
+                    p += 4;
+                    return view.getInt32(p - 4, false);
+                }
+                else if (m < 0xCC)
+                    return readInt64();
+                else if (m < 0xD0)
+                    return undefined;
+                else if (m < 0xD1)
+                    return unpackString(readUint8());
+                else if (m < 0xD2)
+                    return unpackString(readUint16());
+                else if (m < 0xD3)
+                    return unpackString(readUint32());
+                else if (m < 0xD4)
+                    return undefined;
+                else if (m < 0xD5)
+                    return unpackList(readUint8());
+                else if (m < 0xD6)
+                    return unpackList(readUint16());
+                else if (m < 0xD7)
+                    return unpackList(readUint32());
+                else if (m < 0xD8)
+                    return undefined;
+                else if (m < 0xD9)
+                    return unpackMap(readUint8());
+                else if (m < 0xDA)
+                    return unpackMap(readUint16());
+                else if (m < 0xDB)
+                    return unpackMap(readUint32());
+                else if (m < 0xF0)
+                    // Technically, longer structures fit here,
+                    // but they're never used
+                    return undefined;
+                else
+                    return m - 0x100;
+            }
+
+            var message = unpackStructure(size),
                 handler = (message[0] === 0x71) ? handlers[0] : handlers.shift();
 
             // Automatically send ACK_FAILURE as required
@@ -470,13 +477,13 @@
 
             if (cypher.length > 0) {
                 requests.push([0x10, [cypher, args.params || {}], {
-                    0x70: args.onHeader || NOOP,
-                    0x7F: args.onFailure || NOOP
+                    0x70: args.onHeader,
+                    0x7F: args.onFailure
                 }]);
                 requests.push([0x3F, [], {
-                    0x70: args.onFooter || NOOP,
-                    0x71: args.onRecord || NOOP,
-                    0x7F: args.onFailure || NOOP
+                    0x70: args.onFooter,
+                    0x71: args.onRecord,
+                    0x7F: args.onFailure
                 }]);
             }
             if (pvt.ready) sendRequests();
