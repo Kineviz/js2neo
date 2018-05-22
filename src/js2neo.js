@@ -135,7 +135,6 @@
                 principal: pub.user,
                 credentials: args.password
             },
-            chunkHeader = new Uint8Array_(2),
             pvt = {},
             requests = [],
             handlers = [];
@@ -174,15 +173,10 @@
 
         function sendRequests() {
 
-            function sendChunkHeader(hi, lo) {
-                chunkHeader[0] = hi;
-                chunkHeader[1] = lo;
-                send(chunkHeader);
-            }
-
             while (requests.length > 0) {
                 var request = requests.shift(),
-                    data = str(0xB0 + request[1].length, request[0]);
+                    data = str(0xB0 + request[1].length, request[0]),
+                    chunkSize;
                 request[1].forEach(pack1);
 
                 function int32(n) {
@@ -269,14 +263,14 @@
                 }
 
                 handlers.push(request[2]);
-                while (data.length > 0x7FFF) {
-                    sendChunkHeader(0x7F, 0xFF);
-                    send(encode(data.substr(0, 0x7FFF)));
-                    data = data.substr(0x7FFF);
-                }
-                sendChunkHeader(data.length >> 8, data.length & 0xFF);
-                send(encode(data));
-                sendChunkHeader(0x00, 0x00);
+
+                do {
+                    chunkSize = Math.min(data.length, 0x7FFF);
+                    send(encode(str(chunkSize >> 8, chunkSize & 0xFF) + data.substr(0, chunkSize)));
+                    data = data.substr(chunkSize);
+                } while(data);
+                send(encode(str(0, 0)));
+
             }
         }
 
