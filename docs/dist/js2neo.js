@@ -84,7 +84,13 @@
                 unwind.call(this, struct, "months", DAYS, SECONDS, NANOSECONDS);
             },
 
-            open: function(args) { return new Connection(args); }
+            /**
+             * Open a connection to a Bolt server.
+             *
+             * @param settings
+             * @returns {Connection}
+             */
+            open: function(settings) { return new Connection(settings); }
 
         };
 
@@ -122,8 +128,7 @@
 
     function Connection(args) {
         args = args || {};
-        var self = this,
-            pub = {
+        var pub = {
                 secure: args.secure || document.location.protocol === "https:",
                 user: args.user,
                 host: args.host || "localhost",
@@ -460,8 +465,15 @@
             }
         }
 
-        self.run = function(cypher, parameters, events) {
-
+        /**
+         * Run a Cypher query.
+         *
+         * @param cypher
+         * @param parameters
+         * @param events
+         */
+        this.run = function(cypher, parameters, events) {
+            events = events || {};
             if (cypher) {
                 requests.push([0x10, [cypher, parameters || {}], {
                     0x70: events.onHeader,
@@ -477,7 +489,10 @@
                 sendRequests();
         };
 
-        self.close = function() { s.close(1000) };
+        /**
+         * Close the connection.
+         */
+        this.close = function() { s.close(1000) };
 
     }
 
