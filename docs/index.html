@@ -22,7 +22,7 @@
 
       <style>
           h2 {
-              margin-top: 2rem
+              margin: 2rem 0 1rem 0;
           }
 
           textarea, table.result {
@@ -61,16 +61,14 @@
           No support for transactions or routing is provided.
       </p>
 
-      <div style="margin:1.5rem 0">
+      <div style="margin:1.5rem 0; text-align: center">
           <a class="btn btn-success btn-lg" href="dist/js2neo.min.js"
              style="text-align: left;margin-right:1rem;padding-right:6rem">
               <div style="font-size:250%;float:left;padding-right:1rem;">⇩</div>
               <div style="font-size:150%">Download <strong>js2neo.min.js</strong></div>
-              <small><em>(
-                  <script>document.write(sizes["js2neo.min.js"])</script>
-                  bytes,
-                  <script>document.write(sizes["js2neo.min.js.gz"])</script>
-                  bytes gzipped)</em></small>
+              <small><em>
+                  (<script>document.write(sizes["js2neo.min.js"])</script> bytes,
+                   <script>document.write(sizes["js2neo.min.js.gz"])</script> bytes gzipped)</em></small>
           </a>
           <a class="btn btn-secondary btn-lg" href="https://github.com/technige/js2neo"
              style="text-align: left;margin-right:1rem;padding-right:8rem">
@@ -90,62 +88,96 @@
           -->
       </div>
 
+      <h2>Installation</h2>
       <p>
           To use this in a web page, download the <code>js2neo.min.js</code> file (above) or insert the following <code>&lt;script&gt;</code> tag:
           <pre><code>&lt;script src=&quot;http://js2neo.org/dist/js2neo.min.js&quot;&gt;&lt;/script&gt;</code></pre>
       </p>
 
-      <p>
-          Once installed, call the <code>js2neo.open</code> method with settings for your database.
-          This returns a connection object that wraps a single web socket connection and which can be used to <code>run</code> queries.
-          For example:
-          <pre><code>var cx = js2neo.open({host: "graph.example.com", user: "technige", password: "P4ssw0rd!"})</code></pre>
-      </p>
+      <h2>Usage</h2>
+      <div class="card">
+          <div class="card-header">
+            <a role="button" class="btn btn-link" data-toggle="collapse" data-target="#api-open" aria-expanded="true" aria-controls="collapseOne">
+              <code>var cx = js2neo.open(<em>settings</em>);</code>
+            </a>
+          </div>
+          <div class="card-body collapse" id="api-open">
+              <p>
+                  Once installed, call the <code>js2neo.open</code> method with settings for your database.
+                  This returns a connection object that wraps a single web socket connection and which can be used to <code>run</code> queries.
+                  For example:
+                  <pre><code>var cx = js2neo.open({host: "graph.example.com", user: "technige", password: "P4ssw0rd!"})</code></pre>
+              </p>
 
-      <p>
-          The following arguments are supported:
-      </p>
+              <p>The following arguments are supported:</p>
+              <table class="table">
+                  <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+                  <tr><td>secure</td><td>boolean</td><td>A flag to indicate whether or not to use a secure web socket.</td></tr>
+                  <tr><td>user</td><td>string</td><td>The name of the user as which to authenticate.</td></tr>
+                  <tr><td>password</td><td>string</td><td>The password for the given user.</td></tr>
+                  <tr><td>host</td><td>string</td><td>The host name or IP address of the database server.</td></tr>
+                  <tr><td>port</td><td>number</td><td>The port number of the database server.</td></tr>
+                  <tr><td>userAgent</td><td>string</td><td>A custom user agent string.</td></tr>
+              </table>
 
-      <table class="table">
-          <tr><th>Name</th><th>Type</th><th>Description</th></tr>
-          <tr><td>secure</td><td>boolean</td><td>A flag to indicate whether or not to use a secure web socket.</td></tr>
-          <tr><td>user</td><td>string</td><td>The name of the user to authenticate as.</td></tr>
-          <tr><td>password</td><td>string</td><td>The password for the given user.</td></tr>
-          <tr><td>host</td><td>string</td><td>The host name or IP address of the database server.</td></tr>
-          <tr><td>port</td><td>number</td><td>The port number of the database server.</td></tr>
-          <tr><td>userAgent</td><td>string</td><td>A custom user agent string.</td></tr>
-          <tr><td>onOpen</td><td>function(metadata)</td><td>
-              Called when a web socket connection is successfully established.
-              The event passes connection <code>metadata</code> containing <code>secure</code>, <code>user</code>, <code>host</code>, <code>port</code> and <code>userAgent</code> attributes.
-          </td></tr>
-          <tr><td>onHandshake</td><td>function(metadata)</td><td>
-              Called after the handshake that immediately follows a successful connection.
-              This adds a <code>protocolVersion</code> to the connection <code>metadata</code>.
-          </td></tr>
-          <tr><td>onInit</td><td>function(metadata)</td><td>
-              Called with connection <code>metadata</code> on successful initialisation, following the handshake.
-              This is the final stage of setup for a Bolt connection and therefore receipt of this event indicates that the connection is ready to run Cypher queries.
-          </td></tr>
-          <tr><td>onInitFailure</td><td>function(failure)</td><td>
-              Called if initialisation fails, generally due to an authentication error.
-              The event passed represents the failure that occurred and contains <code>code</code> and <code>message</code> attributes.
-              On receipt of this event, the connection can be deemed defunct.
-          </td></tr>
-          <tr><td>onClose</td><td>function(event)</td><td>
-              Called when the underlying web socket is closed, either gracefully or through error.
-          </td></tr>
-          <tr><td>onError</td><td>function(event)</td><td>
-              Called when an error occurs on the underlying the web socket.
-          </td></tr>
-      </table>
+              <p>In addition, the following event handlers can be specified:</p>
+              <table class="table">
+                  <tr><th>Name</th><th>Signature</th><th>Description</th></tr>
+                  <tr><td>onOpen</td><td>function(metadata)</td><td>
+                      Called when a web socket connection is successfully established.
+                      The event passes connection <code>metadata</code> containing <code>secure</code>, <code>user</code>, <code>host</code>, <code>port</code> and <code>userAgent</code> attributes.
+                  </td></tr>
+                  <tr><td>onHandshake</td><td>function(metadata)</td><td>
+                      Called after the handshake that immediately follows a successful connection.
+                      This adds a <code>protocolVersion</code> to the connection <code>metadata</code>.
+                  </td></tr>
+                  <tr><td>onInit</td><td>function(metadata)</td><td>
+                      Called with connection <code>metadata</code> on successful initialisation, following the handshake.
+                      This is the final stage of setup for a Bolt connection and therefore receipt of this event indicates that the connection is ready to run Cypher queries.
+                  </td></tr>
+                  <tr><td>onInitFailure</td><td>function(failure)</td><td>
+                      Called if initialisation fails, generally due to an authentication error.
+                      The event passed represents the failure that occurred and contains <code>code</code> and <code>message</code> attributes.
+                      On receipt of this event, the connection can be deemed defunct.
+                  </td></tr>
+                  <tr><td>onClose</td><td>function(event)</td><td>
+                      Called when the underlying web socket is closed, either gracefully or through error.
+                      The <code>event</code> is a regular web socket <a href="https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent"><code>CloseEvent</code></a>.
+                  </td></tr>
+              </table>
+          </div>
+      </div>
 
-      <p>
-          To run a query, call <code>run</code> on the connection object:
-      <pre><code>cx.run("RETURN $x", {x: "hello, world"}, {onRecord: console.log})</code></pre>
-      </p>
+      <br>
 
+      <div class="card">
+          <div class="card-header">
+            <a role="button" class="btn btn-link" data-toggle="collapse" data-target="#api-run" aria-expanded="true" aria-controls="collapseOne">
+                <code>cx.run(<em>cypher</em>, <em>parameters</em>, <em>eventHandlers</em>);</code>
+            </a>
+          </div>
+          <div class="card-body collapse" id="api-run">
+              <p>
+                  To run a query, call <code>run</code> on the connection object:
+              <pre><code>cx.run("RETURN $x", {x: "hello, world"}, {onRecord: console.log})</code></pre>
+              </p>
+          </div>
+      </div>
+
+      <br>
+
+      <div class="card">
+          <div class="card-header">
+            <a role="button" class="btn btn-link" data-toggle="collapse" data-target="#api-close" aria-expanded="true" aria-controls="collapseOne">
+              <code>cx.close();</code>
+            </a>
+          </div>
+          <div class="card-body collapse" id="api-close">
+          </div>
+      </div>
+
+      <h2><a name="demo">Demo</a></h2>
         <form id="connection-form">
-            <h2>Test Connection</h2>
             <div class="form-group row">
                 <div class="col">
                     <label for="host">Host</label>
@@ -179,7 +211,6 @@
         </form>
 
         <form id="query-form">
-            <h2>Test Cypher Execution</h2>
             <div class="form-group row">
                 <div class="col-12">
                     <label for="cypher">Statement</label>
@@ -220,19 +251,17 @@ RETURN a.name, a.born, collect(m.title)</textarea>
 
         var pub = {};
 
-        function clearConnectionManagementStatus() {
-            var status = document.getElementById("connection-management-status");
-            while (status.firstChild) status.removeChild(status.firstChild);
-        }
-
-        function addConnectionManagementStatus(level, message) {
+        function setConnectionManagementStatus(level, message) {
             var status = document.getElementById("connection-management-status"),
                 div = document.createElement("div"),
                 text = document.createTextNode(message);
-            div.setAttribute("class", "alert alert-" + level);
-            div.setAttribute("role", "alert");
-            status.appendChild(div);
-            div.appendChild(text);
+            while (status.firstChild) status.removeChild(status.firstChild);
+            if (level) {
+                div.setAttribute("class", "alert alert-" + level);
+                div.setAttribute("role", "alert");
+                status.appendChild(div);
+                div.appendChild(text);
+            }
         }
 
         function setConnected(connected) {
@@ -248,7 +277,6 @@ RETURN a.name, a.born, collect(m.title)</textarea>
         }
 
         function connect() {
-            clearConnectionManagementStatus();
             pub.cx = js2neo.open({
                 host: document.getElementById("host").value,
                 port: parseInt(document.getElementById("port").value),
@@ -258,39 +286,45 @@ RETURN a.name, a.born, collect(m.title)</textarea>
                     // for (var key in metadata) {
                     //     if (metadata.hasOwnProperty(key)) pub[key] = metadata[key];
                     // }
-                    // addConnectionManagementStatus("success", "Connected to " + pub.host + " on port " + pub.port);
+                    // setConnectionManagementStatus("success", "Connected to " + pub.host + " on port " + pub.port);
                 },
                 onHandshake: function(metadata) {
                     // for (var key in metadata) {
                     //     if (metadata.hasOwnProperty(key)) pub[key] = metadata[key];
                     // }
-                    // addConnectionManagementStatus("success", "Using Bolt protocol v" + pub.protocolVersion);
+                    // setConnectionManagementStatus("success", "Using Bolt protocol v" + pub.protocolVersion);
                 },
                 onInit: function(metadata) {
                     for (var key in metadata) {
                         if (metadata.hasOwnProperty(key)) pub[key] = metadata[key];
                     }
-                    addConnectionManagementStatus("success", "Connected with Bolt v" + pub.protocolVersion + " to " + pub.host + " on port " + pub.port + " as user " + pub.user);
+                    setConnectionManagementStatus("success", "Connected with Bolt v" + pub.protocolVersion + " to " + pub.host + " on port " + pub.port + " as user " + pub.user);
                     setConnected(true);
                 },
                 onInitFailure: function(failure) {
-                    addConnectionManagementStatus("danger", failure.code + ": " + failure.message);
+                    setConnectionManagementStatus("danger", failure.code + ": " + failure.message);
                     setConnected(false);
                 },
                 onClose: function(event) {
-                    //addConnectionManagementStatus("info", "Connection closed");
+                    switch (event.code)
+                    {
+                        case 1000:
+                        case 1001:
+                            setConnectionManagementStatus();
+                            break;
+                        case 1006:
+                            setConnectionManagementStatus("danger", "Connection failed");
+                            break;
+                        default:
+                            setConnectionManagementStatus("danger", "Connection failed with code " + event.code);
+                    }
                     setConnected(false);
                     pub.cx = undefined;
-                },
-                onError: function(event)
-                {
-                    addConnectionManagementStatus("danger", event);
                 }
             });
         }
 
         function disconnect() {
-            clearConnectionManagementStatus();
             pub.cx.close();
         }
 

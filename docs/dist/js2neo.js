@@ -14,81 +14,79 @@
         str = String.fromCharCode,
         DataView_ = DataView,
         Uint8Array_ = Uint8Array,
-        min = Math.min;
+        min = Math.min,
 
-    global.js2neo = {
+        js2neo = global.js2neo = {
 
-        open: function(args) { return new Connection(args); },
+            version: "1β",
 
-        Node: function(struct) {
-            unwind.call(this, struct, ID, "labels", PROPERTIES);
-        },
+            Node: function(struct) {
+                unwind.call(this, struct, ID, "labels", PROPERTIES);
+            },
 
-        Relationship: function(struct) {
-            unwind.call(this, struct, ID, "start", "end", "type", PROPERTIES);
-        },
+            Relationship: function(struct) {
+                unwind.call(this, struct, ID, "start", "end", "type", PROPERTIES);
+            },
 
-        Path: function (struct) {
-            var nodes = struct[0],
-                relationships = struct[1],
-                sequence = struct[2],
-                lastNode = nodes[0],
-                nextNode,
-                entities = [lastNode],
-                i,
-                relationshipIndex,
-                r,
-                rel = js2neo.Relationship;
-            for (i = 0; i < sequence.length; i += 2) {
-                relationshipIndex = sequence[i];
-                nextNode = nodes[sequence[2 * i + 1]];
-                if (relationshipIndex > 0) {
-                    r = relationships[relationshipIndex - 1];
-                    entities.push(new rel([r.id, lastNode.id, nextNode.id, r.type, r.properties]));
-                } else {
-                    r = relationships[relationships.length + relationshipIndex];
-                    entities.push(new rel([r.id, nextNode.id, lastNode.id, r.type, r.properties]));
+            Path: function (struct) {
+                var nodes = struct[0],
+                    relationships = struct[1],
+                    sequence = struct[2],
+                    lastNode = nodes[0],
+                    nextNode,
+                    entities = [lastNode],
+                    i,
+                    relationshipIndex,
+                    r,
+                    rel = js2neo.Relationship;
+                for (i = 0; i < sequence.length; i += 2) {
+                    relationshipIndex = sequence[i];
+                    nextNode = nodes[sequence[2 * i + 1]];
+                    if (relationshipIndex > 0) {
+                        r = relationships[relationshipIndex - 1];
+                        entities.push(new rel([r.id, lastNode.id, nextNode.id, r.type, r.properties]));
+                    } else {
+                        r = relationships[relationships.length + relationshipIndex];
+                        entities.push(new rel([r.id, nextNode.id, lastNode.id, r.type, r.properties]));
+                    }
+                    entities.push(nextNode);
+                    lastNode = nextNode
                 }
-                entities.push(nextNode);
-                lastNode = nextNode
-            }
-            this.entities = entities;
-        },
+                this.entities = entities;
+            },
 
-        Point: function(struct) {
-            unwind.call(this, struct, "srid", "x", "y");
-        },
+            Point: function(struct) {
+                unwind.call(this, struct, "srid", "x", "y");
+            },
 
-        Date: function(struct) {
-            unwind.call(this, struct, DAYS);
-        },
+            Date: function(struct) {
+                unwind.call(this, struct, DAYS);
+            },
 
-        Time: function(struct) {
-            this.seconds = struct[0] / 1000000000;
-            this.tz = struct[1];
-        },
+            Time: function(struct) {
+                this.seconds = struct[0] / 1000000000;
+                this.tz = struct[1];
+            },
 
-        LocalTime: function(struct) {
-            this.seconds = struct[0] / 1000000000;
-        },
+            LocalTime: function(struct) {
+                this.seconds = struct[0] / 1000000000;
+            },
 
-        DateTime: function(struct) {
-            unwind.call(this, struct, SECONDS, NANOSECONDS, TZ);
-        },
+            DateTime: function(struct) {
+                unwind.call(this, struct, SECONDS, NANOSECONDS, TZ);
+            },
 
-        LocalDateTime: function(struct) {
-            unwind.call(this, struct, SECONDS, NANOSECONDS);
-        },
+            LocalDateTime: function(struct) {
+                unwind.call(this, struct, SECONDS, NANOSECONDS);
+            },
 
-        Duration: function(struct) {
-            unwind.call(this, struct, "months", DAYS, SECONDS, NANOSECONDS);
-        },
+            Duration: function(struct) {
+                unwind.call(this, struct, "months", DAYS, SECONDS, NANOSECONDS);
+            },
 
-        version: "1.0.0-beta.1"
+            open: function(args) { return new Connection(args); }
 
-    };
-
-    function NOOP() {}
+        };
 
     function unwind(struct) {
         for (var i = 0; i < struct.length; i++)
@@ -124,9 +122,10 @@
 
     function Connection(args) {
         args = args || {};
-        var pub = {
+        var self = this,
+            pub = {
                 secure: args.secure || document.location.protocol === "https:",
-                user: args.user || "neo4j",
+                user: args.user,
                 host: args.host || "localhost",
                 port: args.port || 7687,
                 userAgent: args.userAgent || "js2neo/" + js2neo.version
@@ -143,25 +142,36 @@
                 socket: new WebSocket((pub.secure ? "wss" : "ws") + "://" + pub.host + ":" + pub.port)
             },
             s = pvt.socket,
+            onHandshake = args.onHandshake,
+            onInit = args.onInit,
+            onOpen = args.onOpen,
             requests = [
                 [0x01, [pub.userAgent, auth], {
                     0x70: function () {
-                        (args.onInit || NOOP)(pub);
+                        if (onInit)
+                            onInit(pub);
                         pvt.ready = true;
                     },
                     0x7F: args.onInitFailure
                 }]
             ],
-            handlers = [];
+            handlerMaps = [];
 
         s.binaryType = "arraybuffer";
-        s.onmessage = onHandshake;
-        s.onerror = args.onError;
+        s.onmessage = function (event) {
+            var view = new DataView_(event.data);
+            pub.protocolVersion = view.getInt32(0, false);
+            if (onHandshake)
+                onHandshake(pub);
+            s.onmessage = onData;
+            sendRequests();
+        };
         s.onclose = args.onClose;
 
         // Connection opened
         s.onopen = function () {
-            (args.onOpen || NOOP)(pub);
+            if (onOpen)
+                onOpen(pub);
             send(new Uint8Array_([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
         };
 
@@ -259,7 +269,7 @@
                     }
                 }
 
-                handlers.push(request[2]);
+                handlerMaps.push(request[2]);
 
                 do {
                     data = data.substr(chunkSize);
@@ -268,15 +278,6 @@
                 } while(data);
 
             }
-        }
-
-        function onHandshake(event)
-        {
-            var view = new DataView_(event.data);
-            pub.protocolVersion = view.getInt32(0, false);
-            (args.onHandshake || NOOP)(pub);
-            s.onmessage = onData;
-            sendRequests();
         }
 
         function onMessage(data)
@@ -414,10 +415,12 @@
             }
 
             var message = unpackStructure(size),
-                handler = (message[0] === 0x71) ? handlers[0] : handlers.shift();
+                tag = message[0],
+                handlers = (tag === 0x71) ? handlerMaps[0] : handlerMaps.shift(),
+                handler = handlers[tag];
 
             // Automatically send ACK_FAILURE as required
-            if (message[0] === 0x7F)
+            if (tag === 0x7F)
                 requests.push([0x0E, [], {
                     0x7F: function (failure) {
                         s.close(4002, failure.code + ": " + failure.message);
@@ -425,7 +428,7 @@
                 }]);
 
             if (handler)
-                (handler[message[0]] || NOOP)(message[1]);
+                handler(message[1]);
         }
 
         function onData(event)
@@ -441,12 +444,12 @@
                 endOfChunk = 2 + chunkSize;
                 if (inData.length >= endOfChunk) {
                     chunkData = inData.slice(2, endOfChunk);
-                    if (chunkData === "") {
-                        onMessage(encode(inChunks.join()));
-                        inChunks = pvt.inChunks = [];
+                    if (chunkData) {
+                        inChunks.push(chunkData);
                     }
                     else {
-                        inChunks.push(chunkData);
+                        onMessage(encode(inChunks.join()));
+                        inChunks = pvt.inChunks = [];
                     }
                     inData = pvt.inData = pvt.inData.substr(endOfChunk);
                 }
@@ -457,9 +460,9 @@
             }
         }
 
-        this.run = function(cypher, parameters, events) {
+        self.run = function(cypher, parameters, events) {
 
-            if (cypher.length > 0) {
+            if (cypher) {
                 requests.push([0x10, [cypher, parameters || {}], {
                     0x70: events.onHeader,
                     0x7F: events.onFailure
@@ -470,15 +473,14 @@
                     0x7F: events.onFailure
                 }]);
             }
-            if (pvt.ready) sendRequests();
+            if (pvt.ready)
+                sendRequests();
         };
 
-        this.close = function() {
-            s.close();
-        };
+        self.close = function() { s.close(1000) };
 
     }
 
-    console.log("js2neo v" + global.js2neo.version)
+    console.log("js2neo " + js2neo.version)
 
-}(typeof window !== "undefined" ? window : global);
+}(typeof window === "object" ? window : global);
