@@ -18,7 +18,7 @@
 
         js2neo = global.js2neo = {
 
-            version: "1β",
+            version: "1",
 
             Node: function(struct) {
                 unwind.call(this, struct, ID, "labels", PROPERTIES);
