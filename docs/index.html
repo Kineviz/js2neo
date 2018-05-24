@@ -14,7 +14,7 @@
     <script src="cdn/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
     <script src="cdn/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
     <script src="cdn/bootstrap.min.js" integrity="sha384-smHYKdLADwkXOn1EmN1qk/HfnUcbVRZyYmZ4qpPea6sjB/pTJ0euyQp0Mk8ck+5T" crossorigin="anonymous"></script>
-    <script src="dist/js2neo.min.js"></script>
+    <script src="dist/js2neo.js"></script>
     <script src="sizes.js"></script>
 
     <!-- noppa/text-security -->
@@ -25,7 +25,7 @@
               margin: 2rem 0 1rem 0;
           }
 
-          textarea, table.result {
+          textarea {
               font-family: monospace
           }
 
@@ -401,6 +401,20 @@ RETURN a.name, a.born, collect(m.title)</textarea>
             pub.cx.close();
         }
 
+        function nodeValue(container, id, labels, properties) {
+            var card = document.createElement("div"),
+                cardHeader = document.createElement("h5"),
+                cardBody = document.createElement("div");
+            card.setAttribute("class", "card");
+            cardHeader.setAttribute("class", "card-header");
+            cardHeader.appendChild(document.createTextNode("#" + id + " " + labels));
+            cardBody.setAttribute("class", "card-body");
+            cardBody.appendChild(document.createTextNode(JSON.stringify(properties)));
+            card.appendChild(cardHeader);
+            card.appendChild(cardBody);
+            return card;
+        }
+
         function run(cypher) {
             // Clear any existing result
             var head = document.getElementById("result-head"),
@@ -432,18 +446,29 @@ RETURN a.name, a.born, collect(m.title)</textarea>
                     for (var i = 0; i < fields.length; i++) {
                         var td = document.createElement("td");
                         var div = document.createElement("div");
-                        var value = fields[i], text;
-                        if (typeof value === "string") {
-                            text = value;
+                        var value = fields[i], content;
+                        if (value === null) {
+                            content = undefined;
+                        }
+                        else if (typeof value === "string") {
+                            content = document.createTextNode(value);
                         }
                         else if (typeof value === "object" && !Array.isArray(value)) {
-                            div.setAttribute("style", "white-space: pre");
-                            text = value.constructor.name + "(" + JSON.stringify(value, null, "  ") + ")";
+                            var type = value.constructor.name;
+                            switch (type) {
+                                case "Node":
+                                    content = nodeValue(div, value.id, value.labels, value.properties);
+                                    break;
+                                default:
+                                    div.setAttribute("style", "white-space: pre");
+                                    content = document.createTextNode(type + "(" + JSON.stringify(value, null, "  ") + ")");
+                            }
                         }
                         else {
-                            text = JSON.stringify(value);
+                            content = document.createTextNode(JSON.stringify(value));
                         }
-                        div.appendChild(document.createTextNode(text));
+                        if (content !== undefined)
+                            div.appendChild(content);
                         td.appendChild(div);
                         tr.appendChild(td);
                     }

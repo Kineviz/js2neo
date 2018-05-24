@@ -13,7 +13,6 @@
 
         str = String.fromCharCode,
         DataView_ = DataView,
-        Uint8Array_ = Uint8Array,
         min = Math.min,
 
         js2neo = global.js2neo = {
@@ -94,17 +93,33 @@
 
         };
 
+    function newArrayBuffer(size) {
+        return new ArrayBuffer(size || 0);
+    }
+
+    function newUint8Array(buffer) {
+        return new Uint8Array(buffer);
+    }
+
+    function joinArrayBuffers() {
+        var args = arguments,
+            argsLength = args.length,
+            byteLength = 0;
+        for(var i = 0; i < argsLength; i++)
+            byteLength += args[i].byteLength;
+        var out = newArrayBuffer(byteLength),
+            outArray = newUint8Array(out);
+        var offset = 0;
+        for(i = 0; i < argsLength; i++) {
+            outArray.set(newUint8Array(args[i]), offset);
+            offset += args[i].byteLength;
+        }
+        return out;
+    }
+
     function unwind(struct) {
         for (var i = 0; i < struct.length; i++)
             this[arguments[i + 1]] = struct[i];
-    }
-
-    function encode(text)
-    {
-        var data = new Uint8Array_(text.length);
-        for (var i = 0; i < text.length; i++)
-            data[i] = text.charCodeAt(i);
-        return data.buffer;
     }
 
     function UnboundRelationship(struct) {
@@ -141,8 +156,8 @@
                 credentials: args.password
             },
             pvt = {
-                inData: "",
-                inChunks: [],
+                inData: newArrayBuffer(),
+                inMessageData: newArrayBuffer(),
                 ready: false,
                 socket: new WebSocket((pub.secure ? "wss" : "ws") + "://" + pub.host + ":" + pub.port)
             },
@@ -177,7 +192,7 @@
         s.onopen = function () {
             if (onOpen)
                 onOpen(pub);
-            send(new Uint8Array_([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
+            send(newUint8Array([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
         };
 
         function send(data) {
@@ -188,46 +203,45 @@
 
             while (requests.length > 0) {
                 var request = requests.shift(),
-                    data = str(0xB0 + request[1].length, request[0]),
+                    header,
+                    data = [0xB0 + request[1].length, request[0]],
                     chunkSize = 0;
-                request[1].forEach(pack1);
 
-                function int32(n) {
-                    return str(n >> 24) + str(n >> 16 & 255) + str(n >> 8 & 255) + str(n & 255);
-                }
+                request[1].forEach(pack1);
 
                 function packInt(n) {
                     if (n >= -0x10 && n < 0x80)
-                        data += str((0x100 + n) % 0x100);
+                        data.push((0x100 + n) % 0x100);
                     else if (n >= -0x8000 && n < 0x8000)
-                        data += "\xC9" + str(n >> 8) + str(n & 255);
+                        data.push(0xC9, n >> 8, n & 255);
                     else if (n >= -0x80000000 && n < 0x80000000)
-                        data += "\xCA" + int32(n);
+                        data.push(0xCA, n >> 24, n >> 16 & 255, n >> 8 & 255, n & 255);
                     else
                         packFloat(n);
                 }
 
                 function packFloat(n) {
-                    var array = new Uint8Array_(8),
+                    var array = newUint8Array(8),
                         view = new DataView_(array.buffer);
                     view.setFloat64(0, n, false);
-                    data += "\xC1" + str.apply(null, array);
+                    data.push(0xC1);
+                    array.forEach(function(x) { data.push(x); });
                 }
 
                 function packHeader(size, tiny, medium, large) {
                     size = min(size, 0x7FFFFFFF);
                     if (size < 0x10)
-                        data += str(tiny + size);
+                        data.push(tiny + size);
                     else if (size < 0x10000)
-                        data += medium + str(size >> 8) + str(size & 255);
+                        data.push(medium, size >> 8, size & 255);
                     else
-                        data += large + int32(size);
+                        data.push(large, size >> 24, size >> 16 & 255, size >> 8 & 255, size & 255);
                     return size;
                 }
 
                 function packObject(x) {
                     var keys = Object.getOwnPropertyNames(x),
-                        size = packHeader(keys.length, 0xA0, "\xD9", "\xDA"),
+                        size = packHeader(keys.length, 0xA0, 0xD9, 0xDA),
                         key;
                     for (var i = 0; i < size; i++) {
                         key = keys[i];
@@ -241,7 +255,7 @@
 
                     // Check for an array first, if so pack as a List
                     if (Array.isArray(x)) {
-                        size = packHeader(x.length, 0x90, "\xD5", "\xD6");
+                        size = packHeader(x.length, 0x90, 0xD5, 0xD6);
                         for (i = 0; i < size; i++)
                             pack1(x[i]);
                     }
@@ -252,7 +266,7 @@
 
                         //
                         if (t === "boolean")
-                            data += x ? "\xC3" : "\xC2";
+                            data.push(x ? 0xB3 : 0xB2);
 
                         //
                         else if (t === "number")
@@ -260,8 +274,11 @@
 
                         //
                         else if (t === "string") {
-                            size = packHeader(x.length, 0x80, "\xD1", "\xD2");
-                            data += x.substr(0, size);
+                            // TODO multi-byte utf-8
+                            size = packHeader(x.length, 0x80, 0xD1, 0xD2);
+                            for (i = 0; i < size; i++) {
+                                data.push(x.charCodeAt(i));
+                            }
                         }
 
                         //
@@ -270,17 +287,18 @@
 
                         // Everything else is packed as null
                         else
-                            data += "\xC0";
+                            data.push(0xC0);
                     }
                 }
 
                 handlerMaps.push(request[2]);
 
                 do {
-                    data = data.substr(chunkSize);
+                    data = data.slice(chunkSize);
                     chunkSize = min(data.length, 0x7FFF);
-                    send(encode(str(chunkSize >> 8, chunkSize & 0xFF) + data.substr(0, chunkSize)));
-                } while(data);
+                    header = [chunkSize >> 8, chunkSize & 0xFF];
+                    send(newUint8Array(header.concat(data.slice(0, chunkSize))));
+                } while(data.length);
 
             }
         }
@@ -317,9 +335,57 @@
             }
 
             function unpackString(size) {
-                var s = "", end = p + size;
-                while (p < end)
-                    s += str(readUint8());
+                var s = "",
+                    end = p + size,
+                    byte1,
+                    byte2,
+                    byte3,
+                    byte4,
+                    codePoint,
+                    replacementCharacter = "\uFFFD";
+                while (p < end) {
+                    byte1 = readUint8();
+                    if (byte1 < 0x80) {
+                        s += String.fromCharCode(byte1);
+                    }
+                    else if ((byte1 & 0xE0) === 0xC0) {
+                        if (p + 1 <= end) {
+                            byte2 = readUint8();
+                            codePoint = ((byte1 & (0x1F)) << 6) | (byte2 & (0x3F));
+                            s += String.fromCharCode(codePoint);
+                        }
+                        else {
+                            s += replacementCharacter;
+                        }
+                    }
+                    else if ((byte1 & 0xF0) === 0xE0) {
+                        if (p + 2 <= end) {
+                            byte2 = readUint8();
+                            byte3 = readUint8();
+                            codePoint = ((byte1 & (0x0F)) << 12) | ((byte2 & (0x3F)) << 6) | (byte3 & (0x3F));
+                            s += String.fromCharCode(codePoint);
+                        }
+                        else {
+                            s += replacementCharacter;
+                        }
+                    }
+                    else if ((byte1 & 0xF8) === 0xF0) {
+                        if (p + 3 <= end) {
+                            byte2 = readUint8();
+                            byte3 = readUint8();
+                            byte4 = readUint8();
+                            codePoint = ((byte1 & (0x07)) << 18) | ((byte2 & (0x3F)) << 12) | ((byte3 & (0x3F)) << 6) | (byte4 & (0x3F));
+                            codePoint -= 0x10000;
+                            s += String.fromCharCode((codePoint >> 10) + 0xD800, (codePoint % 0x400) + 0xDC00);
+                        }
+                        else {
+                            s += replacementCharacter;
+                        }
+                    }
+                    else {
+                        s += replacementCharacter;
+                    }
+                }
                 return s;
             }
 
@@ -438,25 +504,24 @@
 
         function onData(event)
         {
-            var more = 1,
-                chunkSize,
+            var chunkSize,
                 endOfChunk,
-                chunkData,
-                inData = pvt.inData += str.apply(null, new Uint8Array_(event.data)),
-                inChunks = pvt.inChunks;
+                inData = pvt.inData = joinArrayBuffers(pvt.inData, event.data),
+                header,
+                more = inData.byteLength >= 2 ? 1 : 0;
             while (more) {
-                chunkSize = inData.charCodeAt(0) << 8 | inData.charCodeAt(1);
+                header = newUint8Array(inData);
+                chunkSize = header[0] << 8 | header[1];
                 endOfChunk = 2 + chunkSize;
-                if (inData.length >= endOfChunk) {
-                    chunkData = inData.slice(2, endOfChunk);
-                    if (chunkData) {
-                        inChunks.push(chunkData);
+                if (inData.byteLength >= endOfChunk) {
+                    if (chunkSize) {
+                        pvt.inMessageData = joinArrayBuffers(pvt.inMessageData, inData.slice(2, endOfChunk));
                     }
                     else {
-                        onMessage(encode(inChunks.join()));
-                        inChunks = pvt.inChunks = [];
+                        onMessage(pvt.inMessageData);
+                        pvt.inMessageData = newArrayBuffer();
                     }
-                    inData = pvt.inData = pvt.inData.substr(endOfChunk);
+                    inData = pvt.inData = pvt.inData.slice(endOfChunk);
                 }
                 else
                 {
