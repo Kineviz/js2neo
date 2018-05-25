@@ -17,7 +17,7 @@
 
         js2neo = global.js2neo = {
 
-            version: "1",
+            version: "2",
 
             Node: function(struct) {
                 unwind.call(this, struct, ID, "labels", PROPERTIES);
@@ -192,7 +192,11 @@
         s.onopen = function () {
             if (onOpen)
                 onOpen(pub);
-            send(newUint8Array([0x60, 0x60, 0xB0, 0x17, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]));
+            send(newUint8Array([0x60, 0x60, 0xB0, 0x17,
+                                0x00, 0x00, 0x00, 0x02,
+                                0x00, 0x00, 0x00, 0x01,
+                                0x00, 0x00, 0x00, 0x00,
+                                0x00, 0x00, 0x00, 0x00]));
         };
 
         function send(data) {
@@ -320,13 +324,12 @@
 
             function readUint32() {
                 p += 4;
-                return view.getUint16(p - 4, false)
+                return view.getUint32(p - 4, false)
             }
 
             function readInt64() {
-                var hi = view.getUint32(p, false).toString(16),
-                    lo = view.getUint32(p + 4, false).toString(16);
-                p += 8;
+                var hi = readUint32().toString(16),
+                    lo = readUint32().toString(16);
                 while (hi.length < 8)
                     hi = "0" + hi;
                 while (lo.length < 8)
@@ -337,53 +340,42 @@
             function unpackString(size) {
                 var s = "",
                     end = p + size,
-                    byte1,
-                    byte2,
-                    byte3,
-                    byte4,
+                    leadingByte,
                     codePoint,
                     replacementCharacter = "\uFFFD";
                 while (p < end) {
-                    byte1 = readUint8();
-                    if (byte1 < 0x80) {
-                        s += String.fromCharCode(byte1);
+                    leadingByte = readUint8();
+                    if (leadingByte < 0x80) {
+                        s += str(leadingByte);
                     }
-                    else if ((byte1 & 0xE0) === 0xC0) {
-                        if (p + 1 <= end) {
-                            byte2 = readUint8();
-                            codePoint = ((byte1 & (0x1F)) << 6) | (byte2 & (0x3F));
-                            s += String.fromCharCode(codePoint);
-                        }
-                        else {
-                            s += replacementCharacter;
-                        }
+                    else if (leadingByte < 0xC0) {
+                        s += replacementCharacter;
                     }
-                    else if ((byte1 & 0xF0) === 0xE0) {
-                        if (p + 2 <= end) {
-                            byte2 = readUint8();
-                            byte3 = readUint8();
-                            codePoint = ((byte1 & (0x0F)) << 12) | ((byte2 & (0x3F)) << 6) | (byte3 & (0x3F));
-                            s += String.fromCharCode(codePoint);
-                        }
-                        else {
+                    else if (leadingByte < 0xE0) {
+                        if (p + 1 > end)
                             s += replacementCharacter;
-                        }
+                        else
+                            s += str(((leadingByte & 0x1F) << 6) |
+                                      (readUint8() & 0x3F));
                     }
-                    else if ((byte1 & 0xF8) === 0xF0) {
-                        if (p + 3 <= end) {
-                            byte2 = readUint8();
-                            byte3 = readUint8();
-                            byte4 = readUint8();
-                            codePoint = ((byte1 & (0x07)) << 18) | ((byte2 & (0x3F)) << 12) | ((byte3 & (0x3F)) << 6) | (byte4 & (0x3F));
-                            codePoint -= 0x10000;
-                            s += String.fromCharCode((codePoint >> 10) + 0xD800, (codePoint % 0x400) + 0xDC00);
-                        }
-                        else {
+                    else if (leadingByte < 0xF0) {
+                        if (p + 2 > end)
                             s += replacementCharacter;
-                        }
+                        else
+                            s += str(((leadingByte & 0x0F) << 12) |
+                                     ((readUint8() & 0x3F) << 6) |
+                                      (readUint8() & 0x3F));
                     }
                     else {
-                        s += replacementCharacter;
+                        if (p + 3 > end)
+                            s += replacementCharacter;
+                        else {
+                            codePoint = (((leadingByte & 0x07) << 18) |
+                                         ((readUint8() & 0x3F) << 12) |
+                                         ((readUint8() & 0x3F) << 6) |
+                                          (readUint8() & (0x3F))) - 0x10000;
+                            s += str((codePoint >> 10) + 0xD800, (codePoint % 0x400) + 0xDC00);
+                        }
                     }
                 }
                 return s;
