@@ -278,11 +278,33 @@
 
                         //
                         else if (t === "string") {
-                            // TODO multi-byte utf-8
-                            size = packHeader(x.length, 0x80, 0xD1, 0xD2);
-                            for (i = 0; i < size; i++) {
-                                data.push(x.charCodeAt(i));
+                            var bytes = [], codePoint;
+                            for (i = 0; i < x.length; i++) {
+                                var firstChar = x.charCodeAt(i);
+                                if (firstChar >= 0xD800 && firstChar < 0xDC00 && i + 1 < x.length)
+                                    codePoint = 0x10000 + ((firstChar - 0xD800) << 10) + (x.charCodeAt(++i) - 0xDC00);
+                                else
+                                    codePoint = firstChar;
+                                if (codePoint < 0x0080)
+                                    bytes.push(codePoint);
+                                else if (codePoint < 0x0800)
+                                    bytes.push((codePoint >> 6) | 0xC0,
+                                               (codePoint & 0x3F) | 0x80);
+                                else if (codePoint < 0x10000)
+                                    bytes.push((codePoint >> 12) | 0xE0,
+                                              ((codePoint >> 6) & 0x3F) | 0x80,
+                                               (codePoint & 0x3F | 0x80));
+                                else if (codePoint < 0x110000)
+                                    bytes.push((codePoint >> 18) | 0xF0,
+                                              ((codePoint >> 12) & 0x3F) | 0x80,
+                                              ((codePoint >> 6) & 0x3F) | 0x80,
+                                               (codePoint & 0x3F | 0x80));
+                                else
+                                    bytes.push(0xFF, 0xFD);
                             }
+                            size = packHeader(bytes.length, 0x80, 0xD1, 0xD2);
+                            for (i = 0; i < size; i++)
+                                data.push(bytes[i]);
                         }
 
                         //
