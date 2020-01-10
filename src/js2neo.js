@@ -270,7 +270,7 @@
 
                         //
                         if (t === "boolean")
-                            data.push(x ? 0xB3 : 0xB2);
+                            data.push(x ? 0xC3 : 0xC2);
 
                         //
                         else if (t === "number")
