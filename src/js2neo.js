@@ -269,7 +269,11 @@
                         var t = typeof x;
 
                         //
-                        if (t === "boolean")
+                        if (x === null)
+                            data.push(0xC0);
+
+                        //
+                        else if (t === "boolean")
                             data.push(x ? 0xC3 : 0xC2);
 
                         //

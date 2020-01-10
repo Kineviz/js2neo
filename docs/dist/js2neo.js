@@ -269,8 +269,12 @@
                         var t = typeof x;
 
                         //
-                        if (t === "boolean")
-                            data.push(x ? 0xB3 : 0xB2);
+                        if (x === null)
+                            data.push(0xC0);
+
+                        //
+                        else if (t === "boolean")
+                            data.push(x ? 0xC3 : 0xC2);
 
                         //
                         else if (t === "number")
