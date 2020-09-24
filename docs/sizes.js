@@ -1,4 +1,4 @@
 var sizes = {};
-sizes["js2neo.js"] = 20657;
-sizes["js2neo.min.js"] = 5489;
-sizes["js2neo.min.js.gz"] = 2529;
+sizes["js2neo.js"] = 20654;
+sizes["js2neo.min.js"] = 5526;
+sizes["js2neo.min.js.gz"] = 2542;

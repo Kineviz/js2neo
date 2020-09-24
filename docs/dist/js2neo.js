@@ -12,7 +12,6 @@
         TZ = "tz",
 
         str = String.fromCharCode,
-        DataView_ = DataView,
         min = Math.min,
 
         js2neo = global.js2neo = {
@@ -180,8 +179,8 @@
 
         s.binaryType = "arraybuffer";
         s.onmessage = function (event) {
-            var view = new DataView_(event.data);
-            pub.protocolVersion = view.getInt32(0, false);
+            var view = new DataView(event.data);
+            pub.protocolVersion = parseFloat(view.getUint8(3) + "." + view.getUint8(2));
             if (onHandshake)
                 onHandshake(pub);
             s.onmessage = onData;
@@ -194,9 +193,9 @@
             if (onOpen)
                 onOpen(pub);
             send(newUint8Array([0x60, 0x60, 0xB0, 0x17,
+                                0x00, 0x00, 0x02, 0x04,
                                 0x00, 0x00, 0x01, 0x04,
-                                0x00, 0x00, 0x00, 0x00,
-                                0x00, 0x00, 0x00, 0x00,
+                                0x00, 0x00, 0x00, 0x04,
                                 0x00, 0x00, 0x00, 0x00]));
         };
 
@@ -227,7 +226,7 @@
 
                 function packFloat(n) {
                     var array = newUint8Array(8),
-                        view = new DataView_(array.buffer);
+                        view = new DataView(array.buffer);
                     view.setFloat64(0, n, false);
                     data.push(0xC1);
                     array.forEach(function(x) { data.push(x); });
@@ -336,7 +335,7 @@
 
         function onMessage(data)
         {
-            var view = new DataView_(data),
+            var view = new DataView(data),
                 p = 0,
                 size = readUint8() - 0xB0;
 
