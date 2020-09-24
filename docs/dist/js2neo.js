@@ -150,7 +150,8 @@
                 port: args.port || 7687,
                 userAgent: args.userAgent || "js2neo/" + js2neo.version
             },
-            auth = {
+            meta = {
+                user_agent: pub.userAgent,
                 scheme: "basic",
                 principal: pub.user,
                 credentials: args.password
@@ -166,7 +167,7 @@
             onInit = args.onInit,
             onOpen = args.onOpen,
             requests = [
-                [0x01, [pub.userAgent, auth], {
+                [0x01, [meta], {
                     0x70: function () {
                         if (onInit)
                             onInit(pub);
@@ -193,8 +194,8 @@
             if (onOpen)
                 onOpen(pub);
             send(newUint8Array([0x60, 0x60, 0xB0, 0x17,
-                                0x00, 0x00, 0x00, 0x02,
-                                0x00, 0x00, 0x00, 0x01,
+                                0x00, 0x00, 0x01, 0x04,
+                                0x00, 0x00, 0x00, 0x00,
                                 0x00, 0x00, 0x00, 0x00,
                                 0x00, 0x00, 0x00, 0x00]));
         };
@@ -508,9 +509,9 @@
                 handlers = (tag === 0x71) ? handlerMaps[0] : handlerMaps.shift(),
                 handler = handlers[tag];
 
-            // Automatically send ACK_FAILURE as required
+            // Automatically send RESET as required
             if (tag === 0x7F)
-                requests.push([0x0E, [], {
+                requests.push([0x0F, [], {
                     0x7F: function (failure) {
                         s.close(4002, failure.code + ": " + failure.message);
                     }
