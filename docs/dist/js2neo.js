@@ -563,7 +563,7 @@
                     0x7F: events.onFailure
                 }]);
                 requests.push([0x3F, [{n: -1}], {
-                    0x70: events.onFooter,
+                    0x70: events.onSummary,
                     0x71: events.onRecord,
                     0x7F: events.onFailure
                 }]);
