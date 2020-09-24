@@ -558,11 +558,11 @@
         this.run = function(cypher, parameters, events) {
             events = events || {};
             if (cypher) {
-                requests.push([0x10, [cypher, parameters || {}], {
+                requests.push([0x10, [cypher, parameters || {}, {}], {
                     0x70: events.onHeader,
                     0x7F: events.onFailure
                 }]);
-                requests.push([0x3F, [], {
+                requests.push([0x3F, [{}], {
                     0x70: events.onFooter,
                     0x71: events.onRecord,
                     0x7F: events.onFailure
